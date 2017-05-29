@@ -20,28 +20,6 @@ public enum TestUtils {
   static final PrintStream STDOUT = System.out;
   static final PrintStream STDERR = System.err;
 
-  private static <T> Matcher<T> matcher(Predicate<T> check) {
-    return new BaseMatcher<T>() {
-      @Override
-      public boolean matches(Object item) {
-        return check.test((T) item);
-      }
-
-      @Override
-      public void describeTo(Description description) {
-
-      }
-    };
-  }
-
-  public static boolean sleepAndReturn(boolean value) {
-    try {
-      Thread.sleep(1);
-    } catch (InterruptedException ignored) {
-    }
-    return value;
-  }
-
   /**
    * A base class for tests which writes to stdout/stderr.
    */

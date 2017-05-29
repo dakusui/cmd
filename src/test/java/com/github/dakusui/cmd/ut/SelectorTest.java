@@ -21,9 +21,9 @@ public class SelectorTest extends TestUtils.TestBase {
     ExecutorService executorService = Executors.newFixedThreadPool(3);
     try {
       Selector<String> selector = new Selector.Builder<String>(3)
-          .add(list("A", 5).stream().filter(s -> TestUtils.sleepAndReturn(true)))
-          .add(list("B", 10).stream().filter(s -> TestUtils.sleepAndReturn(true)))
-          .add(list("C", 20).stream().filter(s -> TestUtils.sleepAndReturn(false)))
+          .add(list("A", 5).stream().filter(s -> sleepAndReturn(true)))
+          .add(list("B", 10).stream().filter(s -> sleepAndReturn(true)))
+          .add(list("C", 20).stream().filter(s -> sleepAndReturn(false)))
           .withExecutorService(executorService)
           .build();
       try {
@@ -58,5 +58,13 @@ public class SelectorTest extends TestUtils.TestBase {
       ret.add(String.format("%s-%s", prefix, i));
     }
     return ret;
+  }
+
+  private static boolean sleepAndReturn(boolean value) {
+    try {
+      Thread.sleep(1);
+    } catch (InterruptedException ignored) {
+    }
+    return value;
   }
 }
