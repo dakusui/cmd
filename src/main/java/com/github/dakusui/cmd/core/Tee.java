@@ -2,6 +2,8 @@ package com.github.dakusui.cmd.core;
 
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -22,50 +24,79 @@ public class Tee<T> extends Thread {
   private final List<Queue<Object>> queues;
   private final List<Stream<T>>     streams;
 
-  public static class Builder<T> {
+  public static class Connector<T> {
     private final Stream<T> in;
-    private int     queueSize      = 8192;
-    private Integer numDownStreams = 1;
+    private       int                       queueSize   = 8192;
+    private       long                      timeOut     = 60;
+    private       TimeUnit                  timeOutUnit = TimeUnit.SECONDS;
+    private final List<Consumer<Stream<T>>> consumers   = new LinkedList<>();
 
-    public Builder(Stream<T> in) {
+
+    public Connector(Stream<T> in) {
       this.in = Objects.requireNonNull(in);
     }
 
-    public Builder<T> setQueueSize(int queueSize) {
+    public Connector<T> setQueueSize(int queueSize) {
       this.queueSize = check(queueSize, v -> v > 0, IllegalArgumentException::new);
       return this;
     }
 
-    public Builder<T> setNumberOfStreams(int numDownStreams) {
-      this.numDownStreams = check(numDownStreams, v -> v > 0, IllegalArgumentException::new);
+    public Connector<T> timeOut(long timeOut, TimeUnit timeUnit) {
+      this.timeOut = check(timeOut, v -> v > 0, IllegalArgumentException::new);
+      this.timeOutUnit = Objects.requireNonNull(timeUnit);
       return this;
     }
 
-    public List<Stream<T>> connect() {
-      Tee<T> tee = new Tee<>(this.in, numDownStreams, this.queueSize);
-      tee.start();
-      return Collections.unmodifiableList(tee.streams);
+    public Connector<T> connect(Consumer<Stream<T>> consumer) {
+      this.consumers.add(Objects.requireNonNull(consumer));
+      return this;
     }
 
-    public void connect(List<Consumer<Stream<T>>> consumers) {
-      this.setNumberOfStreams(numDownStreams);
-      Tee<T> tee = new Tee<>(this.in, numDownStreams, this.queueSize);
-      tee.start();
+    public Connector<T> add(Consumer<T> consumer) {
+      this.connect(stream -> stream.forEach(consumer));
+      return this;
+    }
+
+    /**
+     * Blocks until all tasks have completed execution after a
+     * shutdown request, or the timeout occurs, or the current thread
+     * is interrupted, whichever happens first.
+     *
+     * @return {@code true} if this executor terminated and
+     * {@code false} if the timeout elapsed before termination
+     * @throws InterruptedException if interrupted while waiting
+     * @see ForkJoinPool#awaitTermination(long, TimeUnit)
+     */
+    public boolean run() throws InterruptedException {
+      Tee<T> tee = new Tee<>(this.in, consumers.size(), this.queueSize);
       AtomicInteger i = new AtomicInteger(0);
-      tee.streams.parallelStream()
-          .forEach(
-              consumers.get(i.getAndIncrement())
-          );
+      ForkJoinPool pool = new ForkJoinPool(consumers.size());
+      tee.start();
+      try {
+        consumers.stream(
+        ).map(
+            (Consumer<Stream<T>> consumer) -> (Runnable) () -> consumer.accept(tee.streams.get(i.getAndIncrement()))
+        ).map(
+            pool::submit
+        ).parallel(
+        ).forEach(
+            task -> {
+            }
+        );
+      } finally {
+        pool.shutdown();
+      }
+      return pool.awaitTermination(this.timeOut, this.timeOutUnit);
     }
   }
 
   private Tee(Stream<T> in, int numDownStreams, int queueSize) {
     this.in = Objects.requireNonNull(in);
-    queues = new LinkedList<>();
+    this.queues = new LinkedList<>();
     for (int i = 0; i < numDownStreams; i++) {
-      queues.add(new ArrayBlockingQueue<>(queueSize));
+      this.queues.add(new ArrayBlockingQueue<>(queueSize));
     }
-    streams = createDownStreams();
+    this.streams = createDownStreams();
   }
 
   @Override
@@ -73,21 +104,29 @@ public class Tee<T> extends Thread {
     List<Queue<Object>> pendings = new LinkedList<>();
     Stream.concat(in, Stream.of(SENTINEL))
         .forEach((Object t) -> {
-          pendings.addAll(queues);
-          synchronized (queues) {
+          pendings.addAll(this.queues);
+          synchronized (this.queues) {
             while (!pendings.isEmpty()) {
-              queues.stream()
+              this.queues.stream()
                   .filter(pendings::contains)
                   .filter(queue -> queue.offer(t))
                   .forEach(pendings::remove);
-              queues.notifyAll();
+              this.queues.notifyAll();
               try {
-                queues.wait();
+                this.queues.wait();
               } catch (InterruptedException ignored) {
               }
             }
           }
         });
+  }
+
+  public static <T> Connector<T> tee(Stream<T> in) {
+    return new Connector<>(in);
+  }
+
+  public static <T> Connector<T> tee(Stream<T> in, int queueSize) {
+    return tee(in).setQueueSize(queueSize);
   }
 
   private List<Stream<T>> createDownStreams() {
