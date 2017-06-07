@@ -20,6 +20,10 @@ public enum TestUtils {
   static final PrintStream STDOUT = System.out;
   static final PrintStream STDERR = System.err;
 
+  public static <T, U> MatcherBuilder<T, U> matcherBuilder() {
+    return MatcherBuilder.create();
+  }
+
   /**
    * A base class for tests which writes to stdout/stderr.
    */
@@ -110,16 +114,16 @@ public enum TestUtils {
   public static class MatcherBuilder<V, U> {
     String         predicateName = "P";
     Predicate<U>   p             = null;
-    String         functionName  = "f";
+    String         functionName  = "transform";
     Function<V, U> f             = null;
 
-    public MatcherBuilder<V, U> f(String name, Function<V, U> f) {
+    public MatcherBuilder<V, U> transform(String name, Function<V, U> f) {
       this.functionName = Objects.requireNonNull(name);
       this.f = Objects.requireNonNull(f);
       return this;
     }
 
-    public MatcherBuilder<V, U> p(String name, Predicate<U> p) {
+    public MatcherBuilder<V, U> check(String name, Predicate<U> p) {
       this.predicateName = Objects.requireNonNull(name);
       this.p = Objects.requireNonNull(p);
       return this;
@@ -155,10 +159,10 @@ public enum TestUtils {
 
     public static <T> MatcherBuilder<T, T> simple() {
       return new MatcherBuilder<T, T>()
-          .f("passthrough", t -> t);
+          .transform("passthrough", t -> t);
     }
 
-    public static <T, U> MatcherBuilder<T, U> matcherBuilder() {
+    public static <T, U> MatcherBuilder<T, U> create() {
       return new MatcherBuilder<>();
     }
   }

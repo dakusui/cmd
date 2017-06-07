@@ -37,12 +37,12 @@ public class SelectorTest extends TestUtils.TestBase {
       out.forEach(System.out::println);
       //noinspection unchecked
       assertThat(out, CoreMatchers.allOf(
-          TestUtils.MatcherBuilder.<List<String>, Integer>matcherBuilder()
-              .f("sizeOf", List::size)
-              .p("5+10==", u -> 5 + 10 == u)
+          TestUtils.<List<String>, Integer>matcherBuilder()
+              .transform("sizeOf", List::size)
+              .check("5+10==", u -> 5 + 10 == u)
               .build(),
           TestUtils.MatcherBuilder.<List<String>>simple()
-              .p("interleaving", u -> !u.equals(u.stream().sorted().collect(toList())))
+              .check("interleaving", u -> !u.equals(u.stream().sorted().collect(toList())))
               .build()
 
       ));
