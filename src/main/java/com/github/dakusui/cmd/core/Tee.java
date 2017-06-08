@@ -6,6 +6,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -24,79 +25,18 @@ public class Tee<T> extends Thread {
   private final List<Queue<Object>> queues;
   private final List<Stream<T>>     streams;
 
-  public static class Connector<T> {
-    private final Stream<T> in;
-    private       int                       queueSize   = 8192;
-    private       long                      timeOut     = 60;
-    private       TimeUnit                  timeOutUnit = TimeUnit.SECONDS;
-    private final List<Consumer<Stream<T>>> consumers   = new LinkedList<>();
-
-
-    public Connector(Stream<T> in) {
-      this.in = Objects.requireNonNull(in);
-    }
-
-    public Connector<T> setQueueSize(int queueSize) {
-      this.queueSize = check(queueSize, v -> v > 0, IllegalArgumentException::new);
-      return this;
-    }
-
-    public Connector<T> timeOut(long timeOut, TimeUnit timeUnit) {
-      this.timeOut = check(timeOut, v -> v > 0, IllegalArgumentException::new);
-      this.timeOutUnit = Objects.requireNonNull(timeUnit);
-      return this;
-    }
-
-    public Connector<T> connect(Consumer<Stream<T>> consumer) {
-      this.consumers.add(Objects.requireNonNull(consumer));
-      return this;
-    }
-
-    public Connector<T> add(Consumer<T> consumer) {
-      this.connect(stream -> stream.forEach(consumer));
-      return this;
-    }
-
-    /**
-     * Blocks until all tasks have completed execution after a
-     * shutdown request, or the timeout occurs, or the current thread
-     * is interrupted, whichever happens first.
-     *
-     * @return {@code true} if this executor terminated and
-     * {@code false} if the timeout elapsed before termination
-     * @throws InterruptedException if interrupted while waiting
-     * @see ForkJoinPool#awaitTermination(long, TimeUnit)
-     */
-    public boolean run() throws InterruptedException {
-      Tee<T> tee = new Tee<>(this.in, consumers.size(), this.queueSize);
-      AtomicInteger i = new AtomicInteger(0);
-      ForkJoinPool pool = new ForkJoinPool(consumers.size());
-      tee.start();
-      try {
-        consumers.stream(
-        ).map(
-            (Consumer<Stream<T>> consumer) -> (Runnable) () -> consumer.accept(tee.streams.get(i.getAndIncrement()))
-        ).map(
-            pool::submit
-        ).parallel(
-        ).forEach(
-            task -> {
-            }
-        );
-      } finally {
-        pool.shutdown();
-      }
-      return pool.awaitTermination(this.timeOut, this.timeOutUnit);
-    }
-  }
-
-  private Tee(Stream<T> in, int numDownStreams, int queueSize) {
+  Tee(Stream<T> in, int numDownStreams, int queueSize) {
     this.in = Objects.requireNonNull(in);
     this.queues = new LinkedList<>();
     for (int i = 0; i < numDownStreams; i++) {
       this.queues.add(new ArrayBlockingQueue<>(queueSize));
     }
     this.streams = createDownStreams();
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public List<Stream<T>> streams() {
+    return Collections.unmodifiableList(this.streams);
   }
 
   @Override
@@ -182,5 +122,87 @@ public class Tee<T> extends Thread {
     if (check.test(value))
       return value;
     throw exceptionSupplier.get();
+  }
+
+  public static class Connector<T> {
+    private final Stream<T> in;
+    private       int                       queueSize   = 8192;
+    private       long                      timeOut     = 60;
+    private       TimeUnit                  timeOutUnit = TimeUnit.SECONDS;
+    private final List<Consumer<Stream<T>>> consumers   = new LinkedList<>();
+
+
+    public Connector(Stream<T> in) {
+      this.in = Objects.requireNonNull(in);
+    }
+
+    public Connector<T> setQueueSize(int queueSize) {
+      this.queueSize = check(queueSize, v -> v > 0, IllegalArgumentException::new);
+      return this;
+    }
+
+    public Connector<T> timeOut(long timeOut, TimeUnit timeUnit) {
+      this.timeOut = check(timeOut, v -> v > 0, IllegalArgumentException::new);
+      this.timeOutUnit = Objects.requireNonNull(timeUnit);
+      return this;
+    }
+
+
+    public <U> Connector<T> connect(Function<Stream<T>, Stream<U>> map, Consumer<U> action) {
+      this.consumers.add(stream -> map.apply(stream).forEach(action));
+      return this;
+    }
+
+    public Connector<T> connect(Consumer<T> consumer) {
+      this.connect(stream -> stream, consumer);
+      return this;
+    }
+
+    /**
+     * Blocks until all tasks have completed execution after a
+     * shutdown request, or the timeout occurs, or the current thread
+     * is interrupted, whichever happens first.
+     *
+     * @return {@code true} if this executor terminated and
+     * {@code false} if the timeout elapsed before termination
+     * @throws InterruptedException if interrupted while waiting
+     * @see ForkJoinPool#awaitTermination(long, TimeUnit)
+     */
+    public boolean run() throws InterruptedException {
+      return run(this.timeOut, this.timeOutUnit);
+    }
+
+    /**
+     * Blocks until all tasks have completed execution after a
+     * shutdown request, or the timeout occurs, or the current thread
+     * is interrupted, whichever happens first.
+     *
+     * @param timeOut the maximum time to wait
+     * @param unit    the time unit of the timeout argument
+     * @return {@code true} if this executor terminated and
+     * {@code false} if the timeout elapsed before termination
+     * @throws InterruptedException if interrupted while waiting
+     */
+    public boolean run(long timeOut, TimeUnit unit) throws InterruptedException {
+      Tee<T> tee = new Tee<>(this.in, consumers.size(), this.queueSize);
+      AtomicInteger i = new AtomicInteger(0);
+      ForkJoinPool pool = new ForkJoinPool(consumers.size());
+      tee.start();
+      try {
+        consumers.stream(
+        ).map(
+            (Consumer<Stream<T>> consumer) -> (Runnable) () -> consumer.accept(tee.streams().get(i.getAndIncrement()))
+        ).map(
+            pool::submit
+        ).parallel(
+        ).forEach(
+            task -> {
+            }
+        );
+      } finally {
+        pool.shutdown();
+      }
+      return pool.awaitTermination(timeOut, unit);
+    }
   }
 }

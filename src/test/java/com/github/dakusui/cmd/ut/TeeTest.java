@@ -16,7 +16,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
@@ -150,7 +149,7 @@ public class TeeTest {
       int queueSize
   ) throws InterruptedException {
     List<String> output = Collections.synchronizedList(new LinkedList<>());
-    List<Consumer<Stream<String>>> downstreams = createDownstreamConsumers(withIntervals, numStreams, output);
+    List<Consumer<String>> downstreams = createDownstreamConsumers(withIntervals, numStreams, output);
     Tee.Connector<String> connector = Tee.tee(
         data.stream(), queueSize
     );
@@ -159,23 +158,24 @@ public class TeeTest {
     return output;
   }
 
-  private List<Consumer<Stream<String>>> createDownstreamConsumers(boolean withIntervals, int numStreams, List<String> output) {
-    List<Consumer<Stream<String>>> downstreams = new LinkedList<>();
+  private List<Consumer<String>> createDownstreamConsumers(boolean withIntervals, int numStreams, List<String> output) {
+    List<Consumer<String>> downstreams = new LinkedList<>();
     for (int i = 0; i < numStreams; i++) {
       downstreams.add(
-          stream -> stream.map(
-              s -> (format("%02d", Thread.currentThread().getId()) + ":" + s)
-          ).forEach(
-              ((Consumer<String>) s -> {
-                if (withIntervals)
-                  if (System.nanoTime() % 2 == 0)
-                    try {
-                      Thread.sleep(1);
-                    } catch (InterruptedException ignored) {
-                    }
-              }).andThen(
-                  output::add
-              )
+          (String s) -> {
+
+          }
+      );
+      downstreams.add(
+          ((Consumer<String>) s -> {
+            if (withIntervals)
+              if (System.nanoTime() % 2 == 0)
+                try {
+                  Thread.sleep(1);
+                } catch (InterruptedException ignored) {
+                }
+          }).andThen(s ->
+              output.add(format("%02d", Thread.currentThread().getId()) + ":" + s)
           )
       );
     }

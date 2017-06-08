@@ -23,7 +23,7 @@ public class TeeTimeoutTest {
             256
         ).timeOut(
             1, MILLISECONDS
-        ).add(
+        ).connect(
             integer -> {
               try {
                 out.add(integer);
@@ -46,7 +46,7 @@ public class TeeTimeoutTest {
             Stream.of(1, 2, 3, 4, 5)
         ).timeOut(
             30, MILLISECONDS
-        ).add(
+        ).connect(
             integer -> {
               try {
                 out.add(integer);
