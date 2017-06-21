@@ -38,6 +38,7 @@ public class Selector<T> {
     this.executorService = executorService;
     this.queue = queue;
     this.closed = false;
+    System.out.println("created:" + System.identityHashCode(queue));
   }
 
   public Stream<T> select() {
@@ -60,6 +61,7 @@ public class Selector<T> {
             synchronized (queue) {
               while (!closed || !queue.isEmpty()) {
                 try {
+                  System.out.println("taking:" + System.identityHashCode(queue));
                   return queue.take();
                 } catch (InterruptedException ignored) {
                 }
@@ -88,6 +90,7 @@ public class Selector<T> {
     synchronized (queue) {
       closed = true;
       queue.notifyAll();
+      System.out.println("closed:" + System.identityHashCode(queue));
     }
   }
 

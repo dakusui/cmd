@@ -59,7 +59,7 @@ public class PipelineTest extends TestUtils.TestBase {
     );
   }
 
-  @Test(timeout = 3_000, expected = RuntimeException.class)
+  @Test(timeout = 5_000, expected = RuntimeException.class)
   public void failingCommandConnectedToNextCommand() {
     Cmd.cmd(
         Shell.local(),

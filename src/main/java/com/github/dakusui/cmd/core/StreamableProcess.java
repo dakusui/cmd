@@ -66,10 +66,10 @@ public class StreamableProcess extends Process {
   }
 
   private void closeStreams() {
+    this.selector.close();
     for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
       eachStream.close();
     }
-    this.selector.close();
   }
 
   /**

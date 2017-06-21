@@ -94,7 +94,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
         stdin,
         stdout,
         System.err::println
-        );
+    );
   }
 
   static Cmd cmd(Shell shell, String commandLine, Stream<String> stdin) {
@@ -283,7 +283,6 @@ public interface Cmd extends CmdObserver, CmdObservable {
       this.process = startProcess(this.shell, this.command, this.processConfig, threadPool);
       this.state = State.STARTED;
     }
-
 
     private int waitFor(Process process) {
       try {
