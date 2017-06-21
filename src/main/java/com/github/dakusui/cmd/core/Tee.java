@@ -130,6 +130,7 @@ public class Tee<T> extends Thread {
     private       long                      timeOut     = 60;
     private       TimeUnit                  timeOutUnit = TimeUnit.SECONDS;
     private final List<Consumer<Stream<T>>> consumers   = new LinkedList<>();
+    private Thread thread;
 
 
     public Connector(Stream<T> in) {
@@ -184,25 +185,33 @@ public class Tee<T> extends Thread {
      * @throws InterruptedException if interrupted while waiting
      */
     public boolean run(long timeOut, TimeUnit unit) throws InterruptedException {
+      this.thread = null;
       Tee<T> tee = new Tee<>(this.in, consumers.size(), this.queueSize);
       AtomicInteger i = new AtomicInteger(0);
       ForkJoinPool pool = new ForkJoinPool(consumers.size());
-      tee.start();
-      try {
-        consumers.stream(
-        ).map(
-            (Consumer<Stream<T>> consumer) -> (Runnable) () -> consumer.accept(tee.streams().get(i.getAndIncrement()))
-        ).map(
-            pool::submit
-        ).parallel(
-        ).forEach(
-            task -> {
-            }
-        );
-      } finally {
-        pool.shutdown();
+      synchronized (this) {
+        tee.start();
+        try {
+          consumers.stream(
+          ).map(
+              (Consumer<Stream<T>> consumer) -> (Runnable) () -> consumer.accept(tee.streams().get(i.getAndIncrement()))
+          ).map(
+              pool::submit
+          ).parallel(
+          ).forEach(
+              task -> {
+              }
+          );
+        } finally {
+          pool.shutdown();
+        }
+        this.thread = Thread.currentThread();
       }
       return pool.awaitTermination(timeOut, unit);
+    }
+
+    public synchronized void interrupt() {
+      this.thread.interrupt();
     }
   }
 }

@@ -20,7 +20,8 @@ import java.util.stream.Stream;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 
-public interface Cmd {
+public interface Cmd extends CmdObserver, CmdObservable {
+
   Stream<String> stream();
 
   int exitValue();
@@ -40,21 +41,28 @@ public interface Cmd {
   default Cmd connect(Shell shell, String commandLine) {
     return connect(
         shell,
-        stdin -> new StreamableProcess.Config.Builder(stdin).build(),
+        (Stream<String> stdin) -> new StreamableProcess.Config.Builder(stdin).build(),
         commandLine
     );
   }
 
+  /**
+   * @param shell
+   * @param connector   A function that creates a config object from stdin stream.
+   * @param commandLine
+   */
   default Cmd connect(Shell shell, Function<Stream<String>, StreamableProcess.Config> connector, String commandLine) {
-    return Cmd.cmd(
+    Cmd ret = Cmd.cmd(
         shell,
         connector.apply(this.stream()),
         commandLine
     );
+    addObserver(ret);
+    return ret;
   }
 
-  default Tee.Connector<String> tee() {
-    return Tee.tee(this.stream());
+  default CmdTee tee() {
+    return new CmdTee(this, Tee.tee(this.stream()));
   }
 
   static Stream<String> stream(Shell shell, String commandLine) {
@@ -85,8 +93,7 @@ public interface Cmd {
         commandLine,
         stdin,
         stdout,
-        s -> {
-        }
+        System.err::println
     );
   }
 
@@ -96,7 +103,8 @@ public interface Cmd {
         commandLine,
         stdin,
         s -> {
-        });
+        }
+    );
   }
 
   static Cmd cmd(Shell shell, String commandLine) {
@@ -139,7 +147,8 @@ public interface Cmd {
       return new Impl(
           this.shell,
           String.join(" ", this.command),
-          config);
+          this.config
+      );
     }
 
     public Builder addAll(List<String> command) {
@@ -149,6 +158,13 @@ public interface Cmd {
   }
 
   class Impl implements Cmd {
+
+    private List<CmdObserver> observers = new LinkedList<>();
+
+    @Override
+    public void closed(Cmd cmd) {
+      this.destroy();
+    }
 
     enum State {
       NOT_STARTED,
@@ -183,13 +199,21 @@ public interface Cmd {
               try {
                 try {
                   try {
-                    int exitValue = waitFor(process);
-                    if (!(this.processConfig.exitValueChecker().test(exitValue))) {
-                      throw new UnexpectedExitValueException(
-                          exitValue,
-                          this.toString(),
-                          process.getPid()
-                      );
+                    boolean succeeded = false;
+                    try {
+                      int exitValue = waitFor(process);
+                      if (!(this.processConfig.exitValueChecker().test(exitValue))) {
+                        throw new UnexpectedExitValueException(
+                            exitValue,
+                            this.toString(),
+                            process.getPid()
+                        );
+                      } else
+                        succeeded = true;
+                    } finally {
+                      if (!succeeded) {
+                        observers.forEach(cmd -> cmd.closed(Impl.this));
+                      }
                     }
                     ////
                     // A sentinel shouldn't be passed to following stages.
@@ -240,6 +264,11 @@ public interface Cmd {
     @Override
     public StreamableProcess.Config getProcessConfig() {
       return this.processConfig;
+    }
+
+    @Override
+    public void addObserver(CmdObserver observer) {
+      this.observers.add(observer);
     }
 
     @Override

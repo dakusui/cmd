@@ -13,7 +13,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 public class PipelineTest extends TestUtils.TestBase {
-  @Test
+  @Test(timeout = 3_000)
   public void givenCommandPipeline$whenRunIt$thenAllDataProcessed() {
     List<String> out = new LinkedList<>();
     Cmd.cmd(
@@ -37,7 +37,63 @@ public class PipelineTest extends TestUtils.TestBase {
     assertEquals("<1\tHELLO>", out.get(1));
   }
 
-  @Test
+  @Test(timeout = 3_000, expected = RuntimeException.class)
+  public void failingCommand() {
+    Cmd.cmd(
+        Shell.local(),
+        "cat non-existing-file"
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 3_000)
+  public void passingCommand() {
+    Cmd.cmd(
+        Shell.local(),
+        "echo Hello!!!"
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 3_000, expected = RuntimeException.class)
+  public void failingCommandConnectedToNextCommand() {
+    Cmd.cmd(
+        Shell.local(),
+        "cat non-existing-file"
+    ).connect(
+        Shell.local(),
+        stdio -> new StreamableProcess.Config.Builder(stdio).configureStdout(System.out::println).build(),
+        "cat -n"
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 3_000, expected = RuntimeException.class)
+  public void failingCommandConnectedToNextTwoCommands() {
+    Cmd.cmd(
+        Shell.local(),
+        "cat non-existing-file"
+    ).connect(
+        Shell.local(),
+        stdio -> new StreamableProcess.Config.Builder(stdio).configureStdout(System.out::println).build(),
+        "cat -n"
+    ).connect(
+        Shell.local(),
+        stdio -> new StreamableProcess.Config.Builder(stdio).configureStdout(System.out::println).build(),
+        "cat -n"
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 3_000)
   public void givenCmd$whenGetProcessConfig$thenReturnedObjectSane() {
     Cmd cmd = Cmd.cmd(Shell.local(), "echo hello");
     StreamableProcess.Config processConfig = cmd.getProcessConfig();

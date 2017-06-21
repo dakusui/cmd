@@ -47,7 +47,11 @@ public class StreamableProcess extends Process {
 
   @Override
   public int waitFor() throws InterruptedException {
-    return process.waitFor();
+    try {
+      return process.waitFor();
+    } finally {
+      closeStreams();
+    }
   }
 
   @Override
@@ -58,6 +62,10 @@ public class StreamableProcess extends Process {
   @Override
   public void destroy() {
     process.destroy();
+    closeStreams();
+  }
+
+  private void closeStreams() {
     for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
       eachStream.close();
     }

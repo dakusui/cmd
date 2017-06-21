@@ -16,7 +16,23 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class CmdTeeTest {
-  @Test
+  @Test(timeout = 3_000, expected = InterruptedException.class)
+  public void consumeTestExitingNon0() throws InterruptedException {
+    List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
+    Stream<String> in = Stream.of("a", "b", "c");
+    boolean result = Cmd.local(
+        "cat non-existing-file"
+    ).configure(
+        new StreamableProcess.Config.Builder(in).build()
+    ).build().tee(
+    ).connect(
+        s -> out.add(TestUtils.item("LEFT", s))
+    ).connect(
+        s -> out.add(TestUtils.item("RIGHT", s))
+    ).run();
+  }
+
+  @Test(timeout = 3_000)
   public void consumeTest() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     Stream<String> in = Stream.of("a", "b", "c");
@@ -41,7 +57,20 @@ public class CmdTeeTest {
     assertTrue(result);
   }
 
-  @Test
+  @Test(timeout = 3_000, expected = InterruptedException.class)
+  public void teeExitingWithNon0ConnectedToCommands() throws InterruptedException {
+    Cmd.cmd(
+        Shell.local(),
+        "cat not-existing-file"
+    ).tee(
+    ).connect(
+        "cat -n"
+    ).connect(
+        "cat -n"
+    ).run();
+  }
+
+  @Test(timeout = 3_000)
   public void teeTest() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     boolean result = Cmd.cmd(
@@ -53,7 +82,6 @@ public class CmdTeeTest {
             Shell.local(),
             "cat -n",
             in
-        ).stream(
         ),
         s -> out.add(TestUtils.item("LEFT", s))
     ).connect(
@@ -61,7 +89,7 @@ public class CmdTeeTest {
             Shell.local(),
             "cat -n",
             in
-        ).stream(),
+        ),
         s -> out.add(TestUtils.item("RIGHT", s))
     ).run();
     assertThat(
