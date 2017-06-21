@@ -132,7 +132,6 @@ public class Tee<T> extends Thread {
     private final List<Consumer<Stream<T>>> consumers   = new LinkedList<>();
     private Thread thread;
 
-
     public Connector(Stream<T> in) {
       this.in = Objects.requireNonNull(in);
     }

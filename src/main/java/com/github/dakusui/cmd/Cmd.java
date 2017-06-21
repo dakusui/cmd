@@ -94,7 +94,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
         stdin,
         stdout,
         System.err::println
-    );
+        );
   }
 
   static Cmd cmd(Shell shell, String commandLine, Stream<String> stdin) {
