@@ -28,7 +28,7 @@ public class Selector<T> {
 
   private final Map<Stream<T>, Consumer<Object>> streams;
   private final ExecutorService                  executorService;
-  private final BlockingQueue<Object>            queue;
+  final         BlockingQueue<Object>            queue;
   private       boolean                          closed;
 
   Selector(Map<Stream<T>, Consumer<Object>> streams, BlockingQueue<Object> queue, ExecutorService executorService) {
@@ -38,7 +38,6 @@ public class Selector<T> {
     this.executorService = executorService;
     this.queue = queue;
     this.closed = false;
-    System.out.println("created:" + System.identityHashCode(queue));
   }
 
   public Stream<T> select() {
@@ -59,9 +58,8 @@ public class Selector<T> {
 
           private Object takeFromQueue() {
             synchronized (queue) {
-              while (!closed || !queue.isEmpty()) {
+              while (!(closed && queue.isEmpty())) {
                 try {
-                  System.out.println("taking:" + System.identityHashCode(queue));
                   return queue.take();
                 } catch (InterruptedException ignored) {
                 }
@@ -90,7 +88,6 @@ public class Selector<T> {
     synchronized (queue) {
       closed = true;
       queue.notifyAll();
-      System.out.println("closed:" + System.identityHashCode(queue));
     }
   }
 

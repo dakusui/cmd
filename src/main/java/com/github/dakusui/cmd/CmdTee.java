@@ -15,12 +15,6 @@ public class CmdTee {
   CmdTee(Cmd upstream, Tee.Connector<String> teeConnector) {
     this.upstream = Objects.requireNonNull(upstream);
     this.teeConnector = Objects.requireNonNull(teeConnector);
-    this.upstream.addObserver(new CmdObserver() {
-      @Override
-      public void closed(Cmd cmd) {
-        teeConnector.interrupt();
-      }
-    });
   }
 
   public CmdTee connect(Function<Stream<String>, Cmd> factory, Consumer<String> consumer) {
@@ -52,10 +46,28 @@ public class CmdTee {
   }
 
   public boolean run(long timeOut, TimeUnit unit) throws InterruptedException {
+    addObserverToUpstream();
     return teeConnector.run(timeOut, unit);
   }
 
   public boolean run() throws InterruptedException {
-    return teeConnector.run();
+    addObserverToUpstream();
+    try {
+      return teeConnector.run();
+    } finally {
+      upstream.waitFor();
+    }
+  }
+
+  private void addObserverToUpstream() {
+    this.upstream.addObserver(new CmdObserver() {
+      @Override
+      public void closed(Cmd cmd) {
+      }
+
+      public void failed(Cmd cmd) {
+        teeConnector.interrupt();
+      }
+    });
   }
 }

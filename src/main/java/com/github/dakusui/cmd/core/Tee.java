@@ -42,8 +42,8 @@ public class Tee<T> extends Thread {
   @Override
   public void run() {
     List<Queue<Object>> pendings = new LinkedList<>();
-    Stream.concat(in, Stream.of(SENTINEL))
-        .forEach((Object t) -> {
+    Stream.concat(in, Stream.of(SENTINEL)).forEach(
+        (Object t) -> {
           pendings.addAll(this.queues);
           synchronized (this.queues) {
             while (!pendings.isEmpty()) {

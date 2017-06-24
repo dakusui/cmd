@@ -1,19 +1,21 @@
 package com.github.dakusui.cmd.core;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.exceptions.Exceptions;
+
+import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
 
 public class StreamableProcess extends Process {
   private final Process          process;
@@ -21,25 +23,52 @@ public class StreamableProcess extends Process {
   private final Stream<String>   stderr;
   private final Consumer<String> stdin;
   private final Selector<String> selector;
+  private final ExecutorService  threadPool;
 
-  public StreamableProcess(Process process, ExecutorService executorService, Config config) {
-    this.process = process;
+  public StreamableProcess(Shell shell, String command, Config config) {
+    this.process = createProcess(shell, command);
     this.stdout = IoUtils.toStream(getInputStream(), config.charset());
     this.stderr = IoUtils.toStream(getErrorStream(), config.charset());
     this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
-    this.selector = createSelector(config, executorService);
+    this.threadPool = Executors.newFixedThreadPool(3);
+    this.selector = createSelector(config, this.threadPool);
   }
 
+  private static Process createProcess(Shell shell, String command) {
+    try {
+      return Runtime.getRuntime().exec(
+          Stream.concat(
+              Stream.concat(
+                  Stream.of(shell.program()),
+                  shell.options().stream()
+              ),
+              Stream.of(command)
+          ).collect(toList()).toArray(new String[shell.options().size() + 2])
+      );
+    } catch (IOException e) {
+      throw Exceptions.wrap(e);
+    }
+  }
+
+  /**
+   * stdin
+   */
   @Override
   public OutputStream getOutputStream() {
     return new BufferedOutputStream(process.getOutputStream());
   }
 
+  /**
+   * stdout
+   */
   @Override
   public InputStream getInputStream() {
     return new BufferedInputStream(process.getInputStream());
   }
 
+  /**
+   * stderr
+   */
   @Override
   public InputStream getErrorStream() {
     return new BufferedInputStream(process.getErrorStream());
@@ -62,11 +91,16 @@ public class StreamableProcess extends Process {
   @Override
   public void destroy() {
     process.destroy();
-    closeStreams();
+    shutdown();
+  }
+
+  public void shutdown() {
+    this.threadPool.shutdown();
   }
 
   private void closeStreams() {
     this.selector.close();
+    this.stdin().accept(null);
     for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
       eachStream.close();
     }

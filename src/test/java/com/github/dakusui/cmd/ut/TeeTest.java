@@ -97,7 +97,7 @@ public class TeeTest {
     );
   }
 
-  @Test(timeout = 8_000)
+  @Test(timeout = 15_000)
   @Given("!isDataEmpty&&isQueueSizeBig")
   public void givenNonEmptyData$whenDoTeeWithBigQueueSize$thenRunsNormally(
       @From("data") List<String> data,
