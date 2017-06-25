@@ -32,6 +32,7 @@ public class StreamableProcess extends Process {
     this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
     this.threadPool = Executors.newFixedThreadPool(3);
     this.selector = createSelector(config, this.threadPool);
+    System.out.println("cmd:" + command);
   }
 
   private static Process createProcess(Shell shell, String command) {
@@ -91,7 +92,7 @@ public class StreamableProcess extends Process {
   @Override
   public void destroy() {
     process.destroy();
-    shutdown();
+    threadPool.shutdown();
   }
 
   public void shutdown() {
@@ -99,11 +100,11 @@ public class StreamableProcess extends Process {
   }
 
   private void closeStreams() {
-    this.selector.close();
     this.stdin().accept(null);
     for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
       eachStream.close();
     }
+    this.selector.close();
   }
 
   /**

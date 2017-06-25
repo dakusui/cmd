@@ -166,6 +166,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
     public void failed(Cmd cmd) {
       if (this.state != State.STARTED)
         throw Exceptions.illegalState(state, "!=State.STARTED");
+      this.process.shutdown();
       this.process.destroy();
     }
 
@@ -246,10 +247,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
           );
         }
       } finally {
-        if (succeeded) {
-          //observers.forEach(cmd -> cmd.closed(Impl.this));
-          this.process.shutdown();
-        } else {
+        if (!succeeded) {
           observers.forEach(cmd -> cmd.failed(Impl.this));
         }
         this.state = State.CLOSED;
