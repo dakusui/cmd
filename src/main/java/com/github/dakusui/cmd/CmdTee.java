@@ -60,14 +60,6 @@ public class CmdTee {
   }
 
   private void addObserverToUpstream() {
-    this.upstream.addObserver(new CmdObserver() {
-      @Override
-      public void closed(Cmd cmd) {
-      }
-
-      public void failed(Cmd cmd) {
-        teeConnector.interrupt();
-      }
-    });
+    this.upstream.addObserver((upstream, upstreamException) -> teeConnector.interrupt());
   }
 }

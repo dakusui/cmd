@@ -24,7 +24,7 @@ public class CmdStateTest extends TestUtils.TestBase {
   public void givenCmdNotStarted$whenDestroy$thenIllegalStateWillBeThrown() {
     Cmd cmd = Cmd.cmd(Shell.local(), "echo hello");
     try {
-      cmd.close();
+      cmd.abort();
     } catch (IllegalStateException e) {
       assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<NOT_STARTED>"));
       throw e;

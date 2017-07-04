@@ -1,18 +1,19 @@
 package com.github.dakusui.cmd.core;
 
-import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.toList;
 
-public class Selector<T> {
+public class CompatSelector<T> {
   private static final Object SENTINEL  = new Object() {
     @Override
     public String toString() {
@@ -28,10 +29,10 @@ public class Selector<T> {
 
   private final Map<Stream<T>, Consumer<Object>> streams;
   private final ExecutorService                  executorService;
-  private final BlockingQueue<Object>            queue;
+  public final  BlockingQueue<Object>            queue;
   private       boolean                          closed;
 
-  Selector(Map<Stream<T>, Consumer<Object>> streams, BlockingQueue<Object> queue, ExecutorService executorService) {
+  CompatSelector(Map<Stream<T>, Consumer<Object>> streams, BlockingQueue<Object> queue, ExecutorService executorService) {
     this.streams = new LinkedHashMap<Stream<T>, Consumer<Object>>() {{
       putAll(streams);
     }};
@@ -43,7 +44,7 @@ public class Selector<T> {
 
   public Stream<T> select() {
     System.out.println("select:" + System.identityHashCode(queue));
-    drain(
+    this.drain(
         this.streams,
         this.executorService
     );
@@ -53,27 +54,29 @@ public class Selector<T> {
 
           @Override
           public boolean hasNext() {
-            if (next == READ_NEXT)
-              next = takeFromQueue();
+            if (next == READ_NEXT) {
+              next = takeFromQueue().orElse(SENTINEL);
+            }
             return next != SENTINEL;
           }
 
-          private Object takeFromQueue() {
+          private Optional<Object> takeFromQueue() {
             synchronized (queue) {
-              while (!closed || !queue.isEmpty()) {
+              while (!(closed && queue.isEmpty())) {
                 try {
-                  if (queue.isEmpty())
-                    if (closed)
-                      return queue.take();
-                    else
-                      return queue.take();
-                  else
-                    return queue.remove();
+                  return Optional.of(poll());
                 } catch (InterruptedException ignored) {
                 }
               }
             }
-            throw new CommandInterruptionException();
+            return Optional.empty();
+          }
+
+          private Object poll() throws InterruptedException {
+            Object ret = queue.poll(1, TimeUnit.MILLISECONDS);
+            if (ret == null)
+              throw new InterruptedException();
+            return ret;
           }
 
           @SuppressWarnings("unchecked")
@@ -93,11 +96,13 @@ public class Selector<T> {
   }
 
   public void close() {
-    synchronized (queue) {
-      closed = true;
-      queue.notifyAll();
-      System.out.println("closed:" + System.identityHashCode(queue));
-    }
+    System.out.println("CompatSelector:start aborting");
+    //    synchronized (queue) {
+    System.out.println("CompatSelector:aborting");
+    this.closed = true;
+    //      this.queue.notifyAll();
+    System.out.println("CompatSelector:aborted");
+    //    }
   }
 
   public static class Builder<T> {
@@ -124,7 +129,7 @@ public class Selector<T> {
       return this;
     }
 
-    public Selector<T> build() {
+    public CompatSelector<T> build() {
       Consumer<Object> defaultConsumer = new Consumer<Object>() {
         int numConsumedSentinels = 0;
         final int numStreamsForThisConsumer = (int) streams.values().stream().filter(Objects::isNull).count();
@@ -143,7 +148,7 @@ public class Selector<T> {
           }
         }
       };
-      return new Selector<>(
+      return new CompatSelector<>(
           new LinkedHashMap<Stream<T>, Consumer<Object>>() {{
             Builder.this.streams.forEach(
                 (stream, consumer) -> put(
@@ -165,16 +170,31 @@ public class Selector<T> {
   }
 
   @SuppressWarnings("ResultOfMethodCallIgnored")
-  private static <T> void drain(Map<Stream<T>, Consumer<Object>> streams, ExecutorService executorService) {
-    streams.entrySet().stream()
-        .map(
-            (Function<Map.Entry<Stream<T>, Consumer<Object>>, Runnable>)
-                (Map.Entry<Stream<T>, Consumer<Object>> entry) -> () -> appendSentinel(entry.getKey()).forEach(entry.getValue()))
-        .map(executorService::submit)
-        .collect(toList()); // Make sure submitted tasks are all completed.
-  }
-
-  private static <T> Stream<Object> appendSentinel(Stream<T> stream) {
-    return Stream.concat(stream, Stream.of(SENTINEL));
+  private <T> void drain(Map<Stream<T>, Consumer<Object>> streams, ExecutorService executorService) {
+    synchronized (queue) {
+      if (!closed)
+        streams.entrySet().stream(
+        ).map(
+            (Map.Entry<Stream<T>, Consumer<Object>> entry) ->
+                (Runnable) () -> {
+                  System.out.println("Runnable started:" + Thread.currentThread().getId());
+                  for (Object o : Stream.concat(entry.getKey(), Stream.of(SENTINEL)).collect(toList())) {
+                    System.out.println("Runnable running(1):" + Thread.currentThread().getId());
+                    if (Thread.currentThread().isInterrupted()) {
+                      System.out.println("Runnable being interrupted:*********************");
+                      return;
+                    }
+                    System.out.println("Runnable running(2):" + Thread.currentThread().getId());
+                    entry.getValue().accept(o);
+                    System.out.println("Runnable running(3):" + Thread.currentThread().getId());
+                  }
+                  System.out.println("Runnable ended:" + Thread.currentThread().getId());
+                }
+        ).map(
+            executorService::submit
+        ).collect(
+            toList()
+        ); // Make sure submitted tasks are all completed.
+    }
   }
 }

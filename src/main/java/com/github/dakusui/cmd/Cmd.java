@@ -14,19 +14,31 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 
+/*
+ * Components under Cmd
+ * - StreamableProcess
+ *   - CompatSelector
+ * - Cmd
+ * - Tee.Connector
+ * Terminations
+ * - abort
+ * - close
+ */
 public interface Cmd extends CmdObserver, CmdObservable {
 
   Stream<String> stream();
 
   int exitValue();
 
-  void close();
-
   int getPid();
 
   Shell getShell();
 
   StreamableProcess.Config getProcessConfig();
+
+  void waitFor();
+
+  void abort();
 
   default Cmd connect(String commandLine) {
     return connect(getShell(), commandLine);
@@ -56,8 +68,6 @@ public interface Cmd extends CmdObserver, CmdObservable {
   default CmdTee tee() {
     return new CmdTee(this, Tee.tee(this.stream()));
   }
-
-  void waitFor();
 
   static Stream<String> stream(Shell shell, String commandLine) {
     return cmd(shell, commandLine).stream();
@@ -156,18 +166,12 @@ public interface Cmd extends CmdObserver, CmdObservable {
     private List<CmdObserver> observers = new LinkedList<>();
 
     @Override
-    public void closed(Cmd cmd) {
+    public void onFailure(Cmd upstream, RuntimeException upstreamException) {
+      System.out.println("onFailure:this=" + this + ":upstream=" + upstream + ":upstreamException=" + upstreamException);
       if (this.state != State.STARTED)
         throw Exceptions.illegalState(state, "!=State.STARTED");
-      this.process.shutdown();
-    }
-
-    @Override
-    public void failed(Cmd cmd) {
-      if (this.state != State.STARTED)
-        throw Exceptions.illegalState(state, "!=State.STARTED");
-      this.process.shutdown();
-      this.process.destroy();
+      this.upstreamException = upstreamException;
+      this.abort();
     }
 
     enum State {
@@ -183,13 +187,13 @@ public interface Cmd extends CmdObserver, CmdObservable {
     private       State                    state;
     private       StreamableProcess        process;
     private final StreamableProcess.Config processConfig;
+    private       RuntimeException         upstreamException;
 
     Impl(Shell shell, String command, StreamableProcess.Config config) {
       this.shell = shell;
       this.command = command;
       this.processConfig = config;
       this.state = State.NOT_STARTED;
-      this.addObserver(this);
     }
 
     @Override
@@ -201,8 +205,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
       ).filter(
           o -> {
             if (o == SENTINEL) {
-              close();
-              //observers.forEach(cmd -> cmd.closed(Impl.this));
+              close(false);
               ////
               // A sentinel shouldn't be passed to following stages.
               return false;
@@ -212,12 +215,14 @@ public interface Cmd extends CmdObserver, CmdObservable {
       ).filter(
           o -> {
             if (!process.isAlive()) {
-              close();
+              close(false);
             }
             return true;
           }
       ).map(
           o -> (String) o
+      ).onClose(
+          () -> close(true)
       );
     }
 
@@ -228,16 +233,19 @@ public interface Cmd extends CmdObserver, CmdObservable {
       return this.process.exitValue();
     }
 
-    @Override
-    public synchronized void close() {
+    private synchronized void close(boolean abort) {
       if (this.state == State.NOT_STARTED)
         throw Exceptions.illegalState(state, "!=State.STARTED");
       if (this.state == State.CLOSED)
         return;
       boolean succeeded = false;
       try {
-        if (this.process.isAlive())
-          this.waitFor();
+        System.out.printf("cmd:closing:%s:%s%n", this, abort);
+        if (this.isAlive())
+          if (abort)
+            this._abort();
+          else
+            this._waitFor();
         succeeded = this.processConfig.exitValueChecker().test(this.exitValue());
         if (!succeeded) {
           throw new UnexpectedExitValueException(
@@ -247,11 +255,23 @@ public interface Cmd extends CmdObserver, CmdObservable {
           );
         }
       } finally {
-        if (!succeeded) {
-          observers.forEach(cmd -> cmd.failed(Impl.this));
+        System.out.printf("cmd:closing:exitting:%s:succeeded%n", this);
+        if (!succeeded || abort) {
+          observers.forEach(cmd -> {
+            try {
+              System.out.println("closing cmd:" + cmd.toString());
+              cmd.onFailure(Impl.this, new RuntimeException("TODO"));
+            } catch (RuntimeException ignored) {
+            } finally {
+              System.out.println("closed cmd:" + cmd.toString());
+            }
+          });
+        } else {
+          this.state = State.CLOSED;
         }
-        this.state = State.CLOSED;
       }
+      if (this.upstreamException != null)
+        throw this.upstreamException;
     }
 
     @Override
@@ -288,12 +308,41 @@ public interface Cmd extends CmdObserver, CmdObservable {
       this.state = State.STARTED;
     }
 
+    boolean isAlive() {
+      return this.process.isAlive();
+    }
+
     @Override
     public void waitFor() {
+      close(false);
+    }
+
+    @Override
+    public void abort() {
+      System.out.println("cmd:aborting:" + this);
+      close(true);
+      System.out.println("cmd:aborted:" + this);
+    }
+
+    private void _abort() {
+      System.out.println("aborting:_abort");
+      try {
+        this.process.destroy();
+      } finally {
+        System.out.println("aborted:_abort");
+        this.process.close();
+      }
+    }
+
+    private void _waitFor() {
       try {
         process.waitFor();
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
+      } finally {
+        System.out.println("finally:begin:_waitFor");
+        this.process.close();
+        System.out.println("finally:end:_waitFor");
       }
     }
 

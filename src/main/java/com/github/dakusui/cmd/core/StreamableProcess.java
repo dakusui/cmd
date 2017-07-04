@@ -1,6 +1,7 @@
 package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
 import java.io.*;
@@ -9,6 +10,7 @@ import java.nio.charset.Charset;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -18,12 +20,12 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 
 public class StreamableProcess extends Process {
-  private final Process          process;
-  private final Stream<String>   stdout;
-  private final Stream<String>   stderr;
-  private final Consumer<String> stdin;
-  private final Selector<String> selector;
-  private final ExecutorService  threadPool;
+  private final Process                process;
+  private final Stream<String>         stdout;
+  private final Stream<String>         stderr;
+  private final Consumer<String>       stdin;
+  private final CompatSelector<String> selector;
+  private final ExecutorService        threadPool;
 
   public StreamableProcess(Shell shell, String command, Config config) {
     this.process = createProcess(shell, command);
@@ -77,11 +79,7 @@ public class StreamableProcess extends Process {
 
   @Override
   public int waitFor() throws InterruptedException {
-    try {
-      return process.waitFor();
-    } finally {
-      closeStreams();
-    }
+    return process.waitFor();
   }
 
   @Override
@@ -91,20 +89,48 @@ public class StreamableProcess extends Process {
 
   @Override
   public void destroy() {
-    process.destroy();
-    threadPool.shutdown();
+    System.out.println("StreamableProcess:destroy:started");
+    try {
+      process.destroy();
+    } finally {
+      selector.close();
+      System.out.println("StreamableProcess:destroy:finished");
+    }
   }
 
-  public void shutdown() {
-    this.threadPool.shutdown();
+  public void close() {
+    try {
+      System.out.println("closeStreams:closing:selector");
+      this.selector.close();
+      System.out.println("closeStreams:closed:selector");
+      closeStreams();
+    } finally {
+      System.out.println("threadpool shutting down");
+      shutdownAndAwaitTermination(this.threadPool);
+      System.out.println("threadpool shut down");
+    }
   }
 
   private void closeStreams() {
-    this.stdin().accept(null);
-    for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
-      eachStream.close();
+    try {
+      System.out.println("closeStreams:sendNull");
+      this.stdin().accept(null);
+    } finally {
+      for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
+        System.out.println("closeStreams:closing:" + eachStream);
+        eachStream.close();
+      }
     }
-    this.selector.close();
+  }
+
+  private static void shutdownAndAwaitTermination(ExecutorService pool) {
+    pool.shutdown(); // Disable new tasks from being submitted
+    try {
+      System.out.println("pool status:" + pool);
+      pool.awaitTermination(1, TimeUnit.MINUTES);
+    } catch (InterruptedException e) {
+      throw new CommandInterruptionException();
+    }
   }
 
   /**
@@ -135,8 +161,8 @@ public class StreamableProcess extends Process {
     return getPid(this.process);
   }
 
-  private Selector<String> createSelector(Config config, ExecutorService excutorService) {
-    return new Selector.Builder<String>(100)
+  private CompatSelector<String> createSelector(Config config, ExecutorService excutorService) {
+    return new CompatSelector.Builder<String>(100)
         .add(config.stdin(), this.stdin())
         .add(
             this.stdout()
@@ -175,7 +201,7 @@ public class StreamableProcess extends Process {
     return ret;
   }
 
-  public Selector<String> getSelector() {
+  public CompatSelector<String> getSelector() {
     return selector;
   }
 

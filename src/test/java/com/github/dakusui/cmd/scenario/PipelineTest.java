@@ -59,19 +59,24 @@ public class PipelineTest extends TestUtils.TestBase {
     );
   }
 
-  @Test(timeout = 5_000, expected = RuntimeException.class)
+  @Test(timeout = 125_000, expected = RuntimeException.class)
   public void failingCommandConnectedToNextCommand() {
-    Cmd.cmd(
-        Shell.local(),
-        "cat non-existing-file"
-    ).connect(
-        Shell.local(),
-        stdio -> new StreamableProcess.Config.Builder(stdio).configureStdout(System.out::println).build(),
-        "cat -n"
-    ).stream(
-    ).forEach(
-        System.out::println
-    );
+    try {
+      Cmd.cmd(
+          Shell.local(),
+          "cat non-existing-file"
+      ).connect(
+          Shell.local(),
+          stdio -> new StreamableProcess.Config.Builder(stdio).configureStdout(System.out::println).build(),
+          "cat -n"
+      ).stream(
+      ).forEach(
+          System.out::println
+      );
+    } catch (RuntimeException e) {
+      e.printStackTrace();
+      throw e;
+    }
   }
 
   @Test(timeout = 3_000, expected = RuntimeException.class)

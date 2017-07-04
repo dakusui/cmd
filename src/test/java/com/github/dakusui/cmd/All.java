@@ -16,7 +16,7 @@ import org.junit.runners.Suite;
     CmdTest.class,
     CmdTeeTest.class,
     CmdStateTest.class,
-    SelectorTest.class,
+    CompatSelectorTest.class,
     ScenarioTest.class,
     PipelineTest.class,
     TeeTest.class,

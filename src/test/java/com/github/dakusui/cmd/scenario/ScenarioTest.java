@@ -194,7 +194,6 @@ public class ScenarioTest extends TestUtils.TestBase {
       assertTrue("pid=" + pid, pid > 0);
     } finally {
       stream.forEach(System.out::println);
-      cmd.close();
     }
   }
 
