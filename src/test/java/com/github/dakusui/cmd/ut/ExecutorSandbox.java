@@ -37,9 +37,9 @@ public class ExecutorSandbox {
   @Test
   public void test() {
     Stream.of(
-        CompatSelectorTest.list("A", 50),
-        CompatSelectorTest.list("B", 50),
-        CompatSelectorTest.list("C", 50)
+        SelectorTest.list("A", 50),
+        SelectorTest.list("B", 50),
+        SelectorTest.list("C", 50)
     ).parallel(
     ).flatMap(
         Collection::stream

@@ -3,7 +3,9 @@ package com.github.dakusui.cmd.ut;
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
+import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.utils.TestUtils;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -16,7 +18,12 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class CmdTeeTest {
-  @Test(timeout = 3_000, expected = InterruptedException.class)
+  @Before
+  public void before() throws InterruptedException {
+    Thread.sleep(500);
+  }
+
+  @Test(timeout = 3_000, expected = UnexpectedExitValueException.class)
   public void consumeTestExitingNon0() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     Stream<String> in = Stream.of("a", "b", "c");
@@ -39,7 +46,10 @@ public class CmdTeeTest {
     boolean result = Cmd.local(
         "cat -n"
     ).configure(
-        new StreamableProcess.Config.Builder(in).build()
+        new StreamableProcess.Config.Builder(in.filter(s -> {
+          System.out.printf("<%s>%n", s);
+          return true;
+        })).build()
     ).build().tee(
     ).connect(
         s -> out.add(TestUtils.item("LEFT", s))
@@ -57,7 +67,7 @@ public class CmdTeeTest {
     assertTrue(result);
   }
 
-  @Test(timeout = 3_000, expected = InterruptedException.class)
+  @Test(timeout = 3_000, expected = UnexpectedExitValueException.class)
   public void teeExitingWithNon0ConnectedToCommands() throws InterruptedException {
     Cmd.cmd(
         Shell.local(),
@@ -115,7 +125,7 @@ public class CmdTeeTest {
     }
   }
 
-  private TestUtils.MatcherBuilder<List<TestUtils.Item<String>>, Integer> outMatcherBuilder() {
+  public static TestUtils.MatcherBuilder<List<TestUtils.Item<String>>, Integer> outMatcherBuilder() {
     return TestUtils.matcherBuilder();
   }
 }

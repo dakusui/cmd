@@ -137,7 +137,7 @@ public class ScenarioTest extends TestUtils.TestBase {
     System.out.printf("stderrConsumer='%s'(%s)%n", stderrConsumer, redirectsStderr);
   }
 
-  @Test
+  @Test(timeout = 15_000)
   @Given("commandShouldExitWithZero")
   public void whenRunCommand$thenExpectedDataWrittenToStdout(
       @From("shell") Shell shell,
@@ -187,14 +187,10 @@ public class ScenarioTest extends TestUtils.TestBase {
         stderrConsumer,
         redirectsStderr
     );
-    Stream<String> stream = cmd.stream();
-    try {
-      int pid = cmd.getPid();
-      System.out.println("pid=" + pid);
-      assertTrue("pid=" + pid, pid > 0);
-    } finally {
-      stream.forEach(System.out::println);
-    }
+    cmd.stream().forEach(System.out::println);
+    int pid = cmd.getPid();
+    System.out.println("pid=" + pid);
+    assertTrue("pid=" + pid, pid > 0);
   }
 
   @Test(expected = UnexpectedExitValueException.class)

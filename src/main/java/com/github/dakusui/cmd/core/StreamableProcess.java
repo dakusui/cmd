@@ -1,16 +1,12 @@
 package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
 import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -20,21 +16,18 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 
 public class StreamableProcess extends Process {
-  private final Process                process;
-  private final Stream<String>         stdout;
-  private final Stream<String>         stderr;
-  private final Consumer<String>       stdin;
-  private final CompatSelector<String> selector;
-  private final ExecutorService        threadPool;
+  private final Process          process;
+  private final Stream<String>   stdout;
+  private final Stream<String>   stderr;
+  private final Consumer<String> stdin;
+  private final Selector<String> selector;
 
   public StreamableProcess(Shell shell, String command, Config config) {
     this.process = createProcess(shell, command);
     this.stdout = IoUtils.toStream(getInputStream(), config.charset());
     this.stderr = IoUtils.toStream(getErrorStream(), config.charset());
     this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
-    this.threadPool = Executors.newFixedThreadPool(3);
-    this.selector = createSelector(config, this.threadPool);
-    System.out.println("cmd:" + command);
+    this.selector = createSelector(config);
   }
 
   private static Process createProcess(Shell shell, String command) {
@@ -89,47 +82,20 @@ public class StreamableProcess extends Process {
 
   @Override
   public void destroy() {
-    System.out.println("StreamableProcess:destroy:started");
-    try {
-      process.destroy();
-    } finally {
-      selector.close();
-      System.out.println("StreamableProcess:destroy:finished");
-    }
+    process.destroy();
   }
 
   public void close() {
-    try {
-      System.out.println("closeStreams:closing:selector");
-      this.selector.close();
-      System.out.println("closeStreams:closed:selector");
-      closeStreams();
-    } finally {
-      System.out.println("threadpool shutting down");
-      shutdownAndAwaitTermination(this.threadPool);
-      System.out.println("threadpool shut down");
-    }
+    closeStreams();
   }
 
   private void closeStreams() {
     try {
-      System.out.println("closeStreams:sendNull");
       this.stdin().accept(null);
     } finally {
       for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
-        System.out.println("closeStreams:closing:" + eachStream);
         eachStream.close();
       }
-    }
-  }
-
-  private static void shutdownAndAwaitTermination(ExecutorService pool) {
-    pool.shutdown(); // Disable new tasks from being submitted
-    try {
-      System.out.println("pool status:" + pool);
-      pool.awaitTermination(1, TimeUnit.MINUTES);
-    } catch (InterruptedException e) {
-      throw new CommandInterruptionException();
     }
   }
 
@@ -161,27 +127,28 @@ public class StreamableProcess extends Process {
     return getPid(this.process);
   }
 
-  private CompatSelector<String> createSelector(Config config, ExecutorService excutorService) {
-    return new CompatSelector.Builder<String>(100)
-        .add(config.stdin(), this.stdin())
-        .add(
-            this.stdout()
-                .map(s -> {
-                  config.stdoutConsumer().accept(s);
-                  return s;
-                })
-                .filter(config.stdoutFilter())
-        )
-        .add(
-            this.stderr()
-                .map(s -> {
-                  config.stderrConsumer().accept(s);
-                  return s;
-                })
-                .filter(config.stderrFilter())
-        )
-        .withExecutorService(excutorService)
-        .build();
+  private Selector<String> createSelector(Config config) {
+    return new Selector.Builder<String>(
+    ).add(
+        config.stdin(),
+        this.stdin(),
+        false
+    ).add(
+        this.stdout()
+            .filter(config.stdoutFilter()),
+        config.stdoutConsumer().andThen(s -> {
+              System.out.println("out:" + s);
+            }
+        ),
+        true
+    ).add(
+        this.stderr()
+            .filter(config.stderrFilter()),
+        config.stderrConsumer().andThen(s -> {
+          System.err.println("err:" + s);
+        }),
+        true
+    ).build();
   }
 
   private static int getPid(Process proc) {
@@ -201,7 +168,7 @@ public class StreamableProcess extends Process {
     return ret;
   }
 
-  public CompatSelector<String> getSelector() {
+  public Selector<String> getSelector() {
     return selector;
   }
 

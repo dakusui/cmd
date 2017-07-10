@@ -10,6 +10,7 @@ import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import static com.github.dakusui.cmd.utils.TestUtils.base64;
 import static java.lang.String.format;
 import static org.junit.Assert.assertThat;
 
@@ -437,19 +438,6 @@ public class CommandRunnerTest {
 
   private static String systemName() {
     return System.getProperty("os.name");
-  }
-
-  private static String base64() {
-    String systemName = systemName();
-    String ret;
-    if ("Linux".equals(systemName)) {
-      ret = "base64 -w";
-    } else if ("Mac OS X".equals(systemName)) {
-      ret = "base64 -b";
-    } else {
-      throw new RuntimeException(String.format("%s is not a supported platform.", systemName));
-    }
-    return ret;
   }
 }
 

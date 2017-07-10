@@ -164,10 +164,10 @@ public interface Cmd extends CmdObserver, CmdObservable {
   class Impl implements Cmd {
 
     private List<CmdObserver> observers = new LinkedList<>();
+    private Stream<String> output;
 
     @Override
     public void onFailure(Cmd upstream, RuntimeException upstreamException) {
-      System.out.println("onFailure:this=" + this + ":upstream=" + upstream + ":upstreamException=" + upstreamException);
       if (this.state != State.STARTED)
         throw Exceptions.illegalState(state, "!=State.STARTED");
       this.upstreamException = upstreamException;
@@ -200,7 +200,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
     public Stream<String> stream() {
       this.run();
       return Stream.concat(
-          this.process.getSelector().select(),
+          output,
           Stream.of(SENTINEL)
       ).filter(
           o -> {
@@ -222,25 +222,26 @@ public interface Cmd extends CmdObserver, CmdObservable {
       ).map(
           o -> (String) o
       ).onClose(
-          () -> close(true)
+          () -> {
+            close(true);
+          }
       );
     }
 
     @Override
     public synchronized int exitValue() {
       if (this.state == State.NOT_STARTED)
-        throw Exceptions.illegalState(state, "!=State.STARTED");
+        throw Exceptions.illegalState(state, "!=State.NOT_STARTED");
       return this.process.exitValue();
     }
 
-    private synchronized void close(boolean abort) {
+    private void close(boolean abort) {
       if (this.state == State.NOT_STARTED)
         throw Exceptions.illegalState(state, "!=State.STARTED");
       if (this.state == State.CLOSED)
         return;
       boolean succeeded = false;
       try {
-        System.out.printf("cmd:closing:%s:%s%n", this, abort);
         if (this.isAlive())
           if (abort)
             this._abort();
@@ -251,21 +252,19 @@ public interface Cmd extends CmdObserver, CmdObservable {
           throw new UnexpectedExitValueException(
               this.exitValue(),
               this.toString(),
-              getPid()
+              this.process.getPid()
           );
         }
       } finally {
-        System.out.printf("cmd:closing:exitting:%s:succeeded%n", this);
         if (!succeeded || abort) {
-          observers.forEach(cmd -> {
-            try {
-              System.out.println("closing cmd:" + cmd.toString());
-              cmd.onFailure(Impl.this, new RuntimeException("TODO"));
-            } catch (RuntimeException ignored) {
-            } finally {
-              System.out.println("closed cmd:" + cmd.toString());
-            }
-          });
+          synchronized (this) {
+            observers.forEach(cmd -> {
+              try {
+                cmd.onFailure(Impl.this, new RuntimeException("TODO"));
+              } catch (RuntimeException ignored) {
+              }
+            });
+          }
         } else {
           this.state = State.CLOSED;
         }
@@ -277,7 +276,9 @@ public interface Cmd extends CmdObserver, CmdObservable {
     @Override
     public synchronized int getPid() {
       if (this.state == State.NOT_STARTED)
-        throw Exceptions.illegalState(this.state, "==State.NOT_STARTED");
+        throw Exceptions.illegalState(this.state, "!=State.NOT_STARTED");
+      if (this.state != State.CLOSED)
+        this.close(false);
       return this.process.getPid();
     }
 
@@ -292,7 +293,8 @@ public interface Cmd extends CmdObserver, CmdObservable {
     }
 
     @Override
-    public void addObserver(CmdObserver observer) {
+    public synchronized void addObserver(CmdObserver observer) {
+      System.out.println("observer added:" + observer);
       this.observers.add(observer);
     }
 
@@ -305,6 +307,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
       if (state != State.NOT_STARTED)
         throw Exceptions.illegalState(state, "!=State.STARTED");
       this.process = startProcess(this.shell, this.command, this.processConfig);
+      this.output = this.process.getSelector().select();
       this.state = State.STARTED;
     }
 
@@ -319,17 +322,13 @@ public interface Cmd extends CmdObserver, CmdObservable {
 
     @Override
     public void abort() {
-      System.out.println("cmd:aborting:" + this);
       close(true);
-      System.out.println("cmd:aborted:" + this);
     }
 
     private void _abort() {
-      System.out.println("aborting:_abort");
       try {
         this.process.destroy();
       } finally {
-        System.out.println("aborted:_abort");
         this.process.close();
       }
     }
@@ -340,9 +339,7 @@ public interface Cmd extends CmdObserver, CmdObservable {
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
       } finally {
-        System.out.println("finally:begin:_waitFor");
         this.process.close();
-        System.out.println("finally:end:_waitFor");
       }
     }
 

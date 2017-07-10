@@ -34,6 +34,23 @@ public enum TestUtils {
     return MatcherBuilder.create();
   }
 
+  public static String base64() {
+    String systemName = systemName();
+    String ret;
+    if ("Linux".equals(systemName)) {
+      ret = "base64 -w";
+    } else if ("Mac OS X".equals(systemName)) {
+      ret = "base64 -b";
+    } else {
+      throw new RuntimeException(String.format("%s is not a supported platform.", systemName));
+    }
+    return ret;
+  }
+
+  public static String systemName() {
+    return System.getProperty("os.name");
+  }
+
   /**
    * A base class for tests which writes to stdout/stderr.
    */

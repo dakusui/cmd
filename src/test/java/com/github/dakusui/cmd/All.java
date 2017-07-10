@@ -10,16 +10,16 @@ import org.junit.runners.Suite;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
+    CmdTest.class,
+    PipelineTest.class,
+    CmdTeeTest.class,
+    CmdStateTest.class,
+    SelectorTest.class,
+    ScenarioTest.class,
+    TeeTest.class,
     LineReaderTest.class,
     RingBufferedLineWriterTest.class,
     CommandRunnerTest.class,
-    CmdTest.class,
-    CmdTeeTest.class,
-    CmdStateTest.class,
-    CompatSelectorTest.class,
-    ScenarioTest.class,
-    PipelineTest.class,
-    TeeTest.class,
     TeeTimeoutTest.class
 })
 public class All {
