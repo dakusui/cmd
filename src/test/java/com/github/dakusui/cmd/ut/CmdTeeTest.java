@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
@@ -27,7 +27,7 @@ public class CmdTeeTest {
   public void consumeTestExitingNon0() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     Stream<String> in = Stream.of("a", "b", "c");
-    boolean result = Cmd.local(
+    boolean result = CompatCmd.local(
         "cat non-existing-file"
     ).configure(
         new StreamableProcess.Config.Builder(in).build()
@@ -43,7 +43,7 @@ public class CmdTeeTest {
   public void consumeTest() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     Stream<String> in = Stream.of("a", "b", "c");
-    boolean result = Cmd.local(
+    boolean result = CompatCmd.local(
         "cat -n"
     ).configure(
         new StreamableProcess.Config.Builder(in.filter(s -> {
@@ -69,7 +69,7 @@ public class CmdTeeTest {
 
   @Test(timeout = 3_000, expected = UnexpectedExitValueException.class)
   public void teeExitingWithNon0ConnectedToCommands() throws InterruptedException {
-    Cmd.cmd(
+    CompatCmd.cmd(
         Shell.local(),
         "cat not-existing-file"
     ).tee(
@@ -84,19 +84,19 @@ public class CmdTeeTest {
   public void teeTest() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     try {
-      boolean result = Cmd.cmd(
+      boolean result = CompatCmd.cmd(
           Shell.local(),
           "seq 1 10000"
       ).tee(
       ).connect(
-          in -> Cmd.cmd(
+          in -> CompatCmd.cmd(
               Shell.local(),
               "cat -n",
               in
           ),
           s -> out.add(TestUtils.item("LEFT", s))
       ).connect(
-          in -> Cmd.cmd(
+          in -> CompatCmd.cmd(
               Shell.local(),
               "cat -n",
               in

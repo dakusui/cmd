@@ -10,19 +10,19 @@ import java.util.stream.Stream;
 
 public class CmdTee {
   private final Tee.Connector<String> teeConnector;
-  private final Cmd                   upstream;
+  private final CompatCmd             upstream;
 
-  CmdTee(Cmd upstream, Tee.Connector<String> teeConnector) {
+  CmdTee(CompatCmd upstream, Tee.Connector<String> teeConnector) {
     this.upstream = Objects.requireNonNull(upstream);
     this.teeConnector = Objects.requireNonNull(teeConnector);
   }
 
-  public CmdTee connect(Function<Stream<String>, Cmd> factory, Consumer<String> consumer) {
+  public CmdTee connect(Function<Stream<String>, CompatCmd> factory, Consumer<String> consumer) {
     Objects.requireNonNull(factory);
     Objects.requireNonNull(consumer);
     this.teeConnector.connect(
         in -> {
-          Cmd cmd = factory.apply(in);
+          CompatCmd cmd = factory.apply(in);
           CmdTee.this.upstream.addObserver(cmd);
           return cmd.stream();
         },
@@ -32,7 +32,7 @@ public class CmdTee {
   }
 
   public CmdTee connect(Shell shell, String command) {
-    return this.connect(in -> Cmd.cmd(shell, command, in), s -> {
+    return this.connect(in -> CompatCmd.cmd(shell, command, in), s -> {
     });
   }
 

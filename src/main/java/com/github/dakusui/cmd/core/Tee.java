@@ -65,10 +65,6 @@ public class Tee<T> extends Thread {
     return new Connector<>(in);
   }
 
-  public static <T> Connector<T> tee(Stream<T> in, int queueSize) {
-    return tee(in).setQueueSize(queueSize);
-  }
-
   private List<Stream<T>> createDownStreams() {
     return queues.stream()
         .map((Queue<Object> queue) -> (Iterable<T>) () -> new Iterator<T>() {
@@ -136,21 +132,14 @@ public class Tee<T> extends Thread {
       this.in = Objects.requireNonNull(in);
     }
 
-    public Connector<T> setQueueSize(int queueSize) {
-      this.queueSize = check(queueSize, v -> v > 0, IllegalArgumentException::new);
-      return this;
-    }
-
     public Connector<T> timeOut(long timeOut, TimeUnit timeUnit) {
       this.timeOut = check(timeOut, v -> v > 0, IllegalArgumentException::new);
       this.timeOutUnit = Objects.requireNonNull(timeUnit);
       return this;
     }
 
-
-    public <U> Connector<T> connect(Function<Stream<T>, Stream<U>> map, Consumer<U> action) {
+    public <U> void connect(Function<Stream<T>, Stream<U>> map, Consumer<U> action) {
       this.consumers.add(stream -> map.apply(stream).forEach(action));
-      return this;
     }
 
     public Connector<T> connect(Consumer<T> consumer) {

@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.scenario;
 
-import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
@@ -150,7 +150,7 @@ public class ScenarioTest extends TestUtils.TestBase {
   ) {
     List<String> stdout = new LinkedList<>();
     String cmdLine = String.join(" ", command);
-    Cmd.stream(
+    CompatCmd.stream(
         shell,
         StreamableProcess.Config.builder(stdin.stream())
             .configureStdout(stdoutConsumer, s -> redirectsStdout)
@@ -175,7 +175,7 @@ public class ScenarioTest extends TestUtils.TestBase {
       @From("stderrConsumer") Consumer<String> stderrConsumer,
       @From("redirectsStderr") boolean redirectsStderr
   ) {
-    Cmd cmd = buildCommand(
+    CompatCmd cmd = buildCommand(
         shell,
         Stream.concat(
             Stream.of("sleep 0.2", "&&"),
@@ -205,7 +205,7 @@ public class ScenarioTest extends TestUtils.TestBase {
       @From("redirectsStderr") boolean redirectsStderr
   ) {
     List<String> stdout = new LinkedList<>();
-    Cmd cmd = buildCommand(
+    CompatCmd cmd = buildCommand(
         shell,
         command,
         stdin,
@@ -227,7 +227,7 @@ public class ScenarioTest extends TestUtils.TestBase {
     }
   }
 
-  private Cmd buildCommand(
+  private CompatCmd buildCommand(
       Shell shell,
       String[] command,
       List<String> stdin,
@@ -236,7 +236,7 @@ public class ScenarioTest extends TestUtils.TestBase {
       Consumer<String> stderrConsumer,
       boolean redirectsStderr
   ) {
-    return new Cmd.Builder()
+    return new CompatCmd.Builder()
         .withShell(shell)
         .configure(StreamableProcess.Config.builder(stdin.stream())
             .configureStdout(stdoutConsumer, s -> redirectsStdout)

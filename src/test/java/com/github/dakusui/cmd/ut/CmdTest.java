@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
@@ -35,25 +35,25 @@ public class CmdTest extends TestUtils.TestBase {
 
   @Test(timeout = 10_000)
   public void simplyEchoHello() {
-    Cmd.stream(Shell.local(), "echo hello").forEach(System.out::println);
+    CompatCmd.stream(Shell.local(), "echo hello").forEach(System.out::println);
   }
 
   @Test(expected = UnexpectedExitValueException.class)
   public void givenCommandExitWith1$whenRunLocally$thenCommandExecutionExceptionThrown() {
-    Cmd.stream(Shell.local(), "echo hello && exit 1").forEach(System.out::println);
+    CompatCmd.stream(Shell.local(), "echo hello && exit 1").forEach(System.out::println);
   }
 
   @Test(expected = UnexpectedExitValueException.class)
   public void givenCommandExitWith$whenRunItLocallyTwice$thenCommandExecutionExceptionThrown() {
     String command = "echo hello && exit 1";
-    Cmd.stream(Shell.local(), StreamableProcess.Config.builder(Stream.empty()).build(), command).forEach(System.out::println);
-    Cmd.stream(Shell.local(), command).forEach(System.out::println);
+    CompatCmd.stream(Shell.local(), StreamableProcess.Config.builder(Stream.empty()).build(), command).forEach(System.out::println);
+    CompatCmd.stream(Shell.local(), command).forEach(System.out::println);
   }
 
   @Test(expected = UnexpectedExitValueException.class)
   public void givenPipedCommandThatShouldFail$whenRunLocally$thenThrowsException() throws IOException {
     try {
-      new Cmd.Builder()
+      new CompatCmd.Builder()
           .withShell(new Shell.Builder.ForLocal().build())
           .add("echo $(which echo) && echo \"hello\" && cat hello")
           .configure(defaultConfig)
@@ -70,7 +70,7 @@ public class CmdTest extends TestUtils.TestBase {
   @Test(timeout = 15_000)
   public void givenEchoHello$whenRunOverSshOnLocalhost$thenFinishesWithoutError() throws IOException {
     try {
-      new Cmd.Builder()
+      new CompatCmd.Builder()
           .withShell(
               new Shell.Builder.ForSsh("localhost")
                   .userName(TestUtils.userName())
@@ -94,7 +94,7 @@ public class CmdTest extends TestUtils.TestBase {
   public void given_hello_world_everyone$whenPipedToCat$thenPassedToDownstream() throws IOException {
     try {
       List<String> out = new LinkedList<>();
-      new Cmd.Builder()
+      new CompatCmd.Builder()
           .withShell(new Shell.Builder.ForLocal().build())
           .configure(createConfig(Stream.of("hello", "world", "everyone")))
           .add("cat -n")
@@ -118,7 +118,7 @@ public class CmdTest extends TestUtils.TestBase {
   @Test(timeout = 15_000)
   public void givenPipedCommandThatHandles10KB$whenRunWithCustomInput$thenFinishes() throws IOException {
     try {
-      Cmd cmd = new Cmd.Builder()
+      CompatCmd cmd = new CompatCmd.Builder()
           .withShell(new Shell.Builder.ForLocal().withProgram("sh").clearOptions().addOption("-c").build())
           .add(String.format("cat /dev/zero | head -c 100000 | %s 80", TestUtils.base64()))
           .configure(createConfig(Stream.of("Hello", "world")))

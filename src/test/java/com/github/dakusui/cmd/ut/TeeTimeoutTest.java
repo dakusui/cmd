@@ -19,8 +19,6 @@ public class TeeTimeoutTest {
     assertFalse(
         Tee.tee(
             Stream.of(1, 2, 3)
-        ).setQueueSize(
-            256
         ).timeOut(
             1, MILLISECONDS
         ).connect(

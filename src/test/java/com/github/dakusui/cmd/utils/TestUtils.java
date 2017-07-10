@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.utils;
 
-import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -94,7 +94,7 @@ public enum TestUtils {
   public static String identity() {
     String key = "commandstreamer.identity";
     if (!System.getProperties().containsKey(key))
-      return String.format("%s/.ssh/id_rsa", Cmd.stream(Shell.local(), "echo $HOME").collect(Collectors.joining()));
+      return String.format("%s/.ssh/id_rsa", CompatCmd.stream(Shell.local(), "echo $HOME").collect(Collectors.joining()));
     return System.getProperty(key);
   }
 
@@ -109,7 +109,7 @@ public enum TestUtils {
     ///
     // Safest way to get hostname. (or least bad way to get it)
     // See http://stackoverflow.com/questions/7348711/recommended-way-to-get-hostname-in-java
-    return Cmd.stream(Shell.local(), "hostname").collect(Collectors.joining());
+    return CompatCmd.stream(Shell.local(), "hostname").collect(Collectors.joining());
   }
 
   public static InputStream openForRead(File file) {

@@ -70,11 +70,10 @@ public class TeeTest {
   @Given("isDataEmpty")
   public void givenEmptyData$whenDoTee$thenNothingIsInOutput(
       @From("data") List<String> data,
-      @From("numStreams") int numStreams,
-      @From("queueSize") int queueSize
+      @From("numStreams") int numStreams
   ) throws InterruptedException {
     assertThat(
-        runTeeWithSpecifiedNumberOfDownStreams(false, data, numStreams, queueSize),
+        runTeeWithSpecifiedNumberOfDownStreams(false, data, numStreams),
         TestUtils.<List<String>, Integer>matcherBuilder()
             .transform("size", List::size)
             .check("==0", size -> size == 0).build()
@@ -86,11 +85,10 @@ public class TeeTest {
   public void givenNonEmptyData$whenDoTeeWithIntervals$thenRunsNormally(
       @From("data") List<String> data,
       @From("withIntervals") boolean withIntervals,
-      @From("numStreams") int numStreams,
-      @From("queueSize") int queueSize
+      @From("numStreams") int numStreams
   ) throws InterruptedException {
     assertThat(
-        runTeeWithSpecifiedNumberOfDownStreams(withIntervals, data, numStreams, queueSize),
+        runTeeWithSpecifiedNumberOfDownStreams(withIntervals, data, numStreams),
         TestUtils.<List<String>, Integer>matcherBuilder()
             .transform("size", List::size)
             .check("==numStreams*data.size()", v -> v == numStreams * data.size()).build()
@@ -101,11 +99,10 @@ public class TeeTest {
   @Given("!isDataEmpty&&isQueueSizeBig")
   public void givenNonEmptyData$whenDoTeeWithBigQueueSize$thenRunsNormally(
       @From("data") List<String> data,
-      @From("numStreams") int numStreams,
-      @From("queueSize") int queueSize
+      @From("numStreams") int numStreams
   ) throws InterruptedException {
     assertThat(
-        runTeeWithSpecifiedNumberOfDownStreams(false, data, numStreams, queueSize),
+        runTeeWithSpecifiedNumberOfDownStreams(false, data, numStreams),
         TestUtils.<List<String>, Integer>matcherBuilder()
             .transform("size", List::size)
             .check("==numStreams*data.size()", v -> v == numStreams * data.size()).build()
@@ -116,11 +113,10 @@ public class TeeTest {
   @Given("!isDataEmpty&&!isQueueSizeBig")
   public void givenNonEmptyData$whenDoTee$thenRunsNormally(
       @From("data") List<String> data,
-      @From("numStreams") int numStreams,
-      @From("queueSize") int queueSize
+      @From("numStreams") int numStreams
   ) throws InterruptedException {
     assertThat(
-        runTeeWithSpecifiedNumberOfDownStreams(false, data, numStreams, queueSize),
+        runTeeWithSpecifiedNumberOfDownStreams(false, data, numStreams),
         TestUtils.<List<String>, Integer>matcherBuilder()
             .transform("size", List::size)
             .check(format("==%d*%d", numStreams, data.size()), v -> v == numStreams * data.size()).build()
@@ -145,13 +141,12 @@ public class TeeTest {
   private List<String> runTeeWithSpecifiedNumberOfDownStreams(
       boolean withIntervals,
       List<String> data,
-      int numStreams,
-      int queueSize
+      int numStreams
   ) throws InterruptedException {
     List<String> output = Collections.synchronizedList(new LinkedList<>());
     List<Consumer<String>> downstreams = createDownstreamConsumers(withIntervals, numStreams, output);
     Tee.Connector<String> connector = Tee.tee(
-        data.stream(), queueSize
+        data.stream()
     );
     downstreams.forEach(connector::connect);
     connector.run();

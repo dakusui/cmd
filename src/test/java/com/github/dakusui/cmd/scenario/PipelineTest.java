@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.scenario;
 
-import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
@@ -16,7 +16,7 @@ public class PipelineTest extends TestUtils.TestBase {
   @Test(timeout = 3_000)
   public void givenCommandPipeline$whenRunIt$thenAllDataProcessed() {
     List<String> out = new LinkedList<>();
-    Cmd.cmd(
+    CompatCmd.cmd(
         Shell.local(),
         "echo hello && echo world"
     ).connect(
@@ -39,7 +39,7 @@ public class PipelineTest extends TestUtils.TestBase {
 
   @Test(timeout = 3_000, expected = RuntimeException.class)
   public void failingCommand() {
-    Cmd.cmd(
+    CompatCmd.cmd(
         Shell.local(),
         "cat non-existing-file"
     ).stream(
@@ -50,7 +50,7 @@ public class PipelineTest extends TestUtils.TestBase {
 
   @Test(timeout = 3_000)
   public void passingCommand() {
-    Cmd.cmd(
+    CompatCmd.cmd(
         Shell.local(),
         "echo Hello!!!"
     ).stream(
@@ -62,7 +62,7 @@ public class PipelineTest extends TestUtils.TestBase {
   @Test(timeout = 15_000, expected = RuntimeException.class)
   public void failingCommandConnectedToNextCommand() {
     try {
-      Cmd.cmd(
+      CompatCmd.cmd(
           Shell.local(),
           "cat non-existing-file"
       ).connect(
@@ -81,7 +81,7 @@ public class PipelineTest extends TestUtils.TestBase {
 
   @Test(timeout = 3_000, expected = RuntimeException.class)
   public void failingCommandConnectedToNextTwoCommands() {
-    Cmd.cmd(
+    CompatCmd.cmd(
         Shell.local(),
         "cat non-existing-file"
     ).connect(
@@ -100,7 +100,7 @@ public class PipelineTest extends TestUtils.TestBase {
 
   @Test(timeout = 3_000)
   public void givenCmd$whenGetProcessConfig$thenReturnedObjectSane() {
-    Cmd cmd = Cmd.cmd(Shell.local(), "echo hello");
+    CompatCmd cmd = CompatCmd.cmd(Shell.local(), "echo hello");
     StreamableProcess.Config processConfig = cmd.getProcessConfig();
 
     System.out.println(processConfig.charset());

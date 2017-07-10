@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
@@ -19,7 +19,7 @@ public class TeeSandbox {
   public void teeExample() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     Stream<String> in = Stream.of("a", "b", "c");
-    boolean result = Cmd.local(
+    boolean result = CompatCmd.local(
         "cat -n"
     ).configure(StreamableProcess.Config.builder().configureStdin(in).build()).build(
     ).tee(
@@ -43,7 +43,7 @@ public class TeeSandbox {
   public void connectExample() throws InterruptedException {
     List<TestUtils.Item<String>> out = Collections.synchronizedList(new LinkedList<>());
     Stream<String> in = Stream.of("a", "b", "c");
-    Cmd.local(
+    CompatCmd.local(
         "cat -n"
     ).configure(StreamableProcess.Config.builder().configureStdin(in).build()).build(
     ).stream(

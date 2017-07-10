@@ -15,4 +15,15 @@ public class Sandbox {
     });
     s.forEach(System.out::println);
   }
+
+  @Test
+  public void nullStream() {
+    Stream<String> s = Stream.of("hello", "world");
+    s.close();
+    Stream<String> stream = Stream.concat(
+        s,
+        Stream.of("Hello")
+    );
+    stream.forEach(System.out::println);
+  }
 }

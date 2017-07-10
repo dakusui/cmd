@@ -53,7 +53,10 @@ public interface Selector<T> {
       ).map(
           tRecord -> tRecord.data
       ).onClose(
-          () -> consumers.keySet().forEach(Stream::close)
+          () -> {
+            System.out.println("selector closed");
+            consumers.keySet().forEach(Stream::close);
+          }
       );
     }
   }

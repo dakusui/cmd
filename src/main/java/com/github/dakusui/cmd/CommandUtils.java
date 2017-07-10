@@ -17,7 +17,7 @@ import static java.util.Arrays.asList;
 /**
  * A helper class to provide compatibility with 'commandrunner' library. This class is kept only for compatibility.
  *
- * @see Cmd
+ * @see CompatCmd
  */
 @Deprecated
 public enum CommandUtils {
@@ -41,54 +41,50 @@ public enum CommandUtils {
     RingBufferedLineWriter stderr = new RingBufferedLineWriter(100);
     RingBufferedLineWriter stdouterr = new RingBufferedLineWriter(100);
     AtomicReference<Integer> exitValueHolder = new AtomicReference<>(null);
-    Cmd cmd = new Cmd.Builder()
+    CompatCmd cmd = new CompatCmd.Builder()
         .withShell(shell)
         .add(command)
         .configure(
-            StreamableProcess.Config.builder(Stream.empty())
-                .configureStdout(s -> {
-                  stdout.write(s);
-                  stdouterr.write(s);
-                })
-                .configureStderr(s -> {
-                  stderr.write(s);
-                  stdouterr.write(s);
-                })
-                .checkExitValueWith(exitValue -> {
-                  synchronized (exitValueHolder) {
-                    exitValueHolder.set(exitValue);
-                    exitValueHolder.notifyAll();
-                    return exitValue == 0;
-                  }
-                })
-                .build()
-        )
-        .build();
+            StreamableProcess.Config.builder(Stream.empty()).configureStdout(s -> {
+              stdout.write(s);
+              stdouterr.write(s);
+            }).configureStderr(s -> {
+              stderr.write(s);
+              stdouterr.write(s);
+            }).checkExitValueWith(exitValue -> {
+              synchronized (exitValueHolder) {
+                exitValueHolder.set(exitValue);
+                exitValueHolder.notifyAll();
+                return exitValue == 0;
+              }
+            }).build()
+        ).build();
 
     final Callable<CommandResult> callable = () -> {
-      String commandLine = shell.format();
       try {
-        cmd.stream().forEach(s -> {
+        Stream<String> stream = cmd.stream();
+        stream.forEach(s -> {
+          System.out.println("s:" + s);
         });
+        Integer exitValue;
         synchronized (exitValueHolder) {
-          Integer exitValue;
           while ((exitValue = exitValueHolder.get()) == null) {
             try {
               exitValueHolder.wait();
             } catch (InterruptedException ignored) {
             }
           }
-          return new CommandResult(
-              String.join(" "),
-              exitValue,
-              stdout.asString(),
-              stderr.asString(),
-              stdouterr.asString()
-          );
         }
+        return new CommandResult(
+            String.join(" "),
+            exitValue,
+            stdout.asString(),
+            stderr.asString(),
+            stdouterr.asString()
+        );
       } catch (UnexpectedExitValueException e) {
         return new CommandResult(
-            commandLine,
+            shell.format(),
             e.exitValue(),
             stdout.asString(),
             stderr.asString(),
