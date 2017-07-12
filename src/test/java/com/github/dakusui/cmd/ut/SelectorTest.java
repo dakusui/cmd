@@ -22,7 +22,7 @@ public class SelectorTest extends TestUtils.TestBase {
     ExecutorService executorService = Executors.newFixedThreadPool(3);
     try {
       Selector<String> selector = createSelector();
-      selector.select().forEach(
+      selector.stream().forEach(
           ((Consumer<String>) s -> {
             System.err.println("taken:" + s);
           }).andThen(
@@ -42,7 +42,7 @@ public class SelectorTest extends TestUtils.TestBase {
 
       ));
     } finally {
-      System.out.println("shutting down");
+      System.out.println("shutting to");
       executorService.shutdown();
     }
   }

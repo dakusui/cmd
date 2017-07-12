@@ -1,8 +1,14 @@
-package com.github.dakusui.cmd;
+package com.github.dakusui.cmd.tmp;
 
+import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.CmdObservable;
+import com.github.dakusui.cmd.CmdObserver;
+import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.core.Tee;
-import com.github.dakusui.cmd.exceptions.*;
+import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
+import com.github.dakusui.cmd.exceptions.Exceptions;
+import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 
 import java.util.Collections;
 import java.util.LinkedList;
@@ -47,13 +53,13 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
   default CompatCmd connect(Shell shell, String commandLine) {
     return connect(
         shell,
-        (Stream<String> stdin) -> new StreamableProcess.Config.Builder(stdin).build(),
+        (Stream<String> stdin) -> new StreamableProcess.Config.Builder().init().configureStdin(stdin).build(),
         commandLine
     );
   }
 
   /**
-   * @param connector A function that creates a config object from stdin stream.
+   * @param connector A function that creates a config object from from to.
    */
   default CompatCmd connect(Shell shell, Function<Stream<String>, StreamableProcess.Config> connector, String commandLine) {
     CompatCmd ret = CompatCmd.cmd(
@@ -65,8 +71,8 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
     return ret;
   }
 
-  default CmdTee tee() {
-    return new CmdTee(this, Tee.tee(this.stream()));
+  default CompatCmdTee tee() {
+    return new CompatCmdTee(this, Tee.tee(this.stream()));
   }
 
   static Stream<String> stream(Shell shell, String commandLine) {
@@ -83,9 +89,9 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
         StreamableProcess.Config.builder(
             stdin
         ).configureStdout(
-            Objects.requireNonNull(stdout)
+            Objects.requireNonNull(stdout), s -> s
         ).configureStderr(
-            Objects.requireNonNull(stderr)
+            Objects.requireNonNull(stderr), s -> s.filter(t -> false)
         ).build(),
         commandLine
     );
@@ -130,7 +136,11 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
   class Builder {
     Shell shell;
     List<String>             command = new LinkedList<>();
-    StreamableProcess.Config config  = StreamableProcess.Config.create();
+    StreamableProcess.Config config  = create();
+
+    public static StreamableProcess.Config create() {
+      return StreamableProcess.Config.builder().build();
+    }
 
     public Builder add(String arg) {
       this.command.add(arg);
@@ -168,23 +178,15 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
 
     @Override
     public void onFailure(CompatCmd upstream, RuntimeException upstreamException) {
-      if (this.state != State.STARTED)
-        throw Exceptions.illegalState(state, "!=State.STARTED");
+      if (this.state != Cmd.Impl.State.RUNNING)
+        throw Exceptions.illegalState(state, "!=State.RUNNING");
       this.upstreamException = upstreamException;
       this.abort();
     }
 
-    enum State {
-      NOT_STARTED,
-      STARTED,
-      CLOSED
-    }
-
-    static final Object SENTINEL = new Object();
-
     private final Shell                    shell;
     private final String                   command;
-    private       State                    state;
+    private       Cmd.Impl.State           state;
     private       StreamableProcess        process;
     private final StreamableProcess.Config processConfig;
     private       RuntimeException         upstreamException;
@@ -193,21 +195,21 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
       this.shell = shell;
       this.command = command;
       this.processConfig = config;
-      this.state = State.NOT_STARTED;
+      this.state = Cmd.Impl.State.PREPARING;
     }
 
     @Override
     public synchronized Stream<String> stream() {
-      if (state != State.NOT_STARTED)
-        throw Exceptions.illegalState(state, "==State.NOT_STARTED");
+      if (state != Cmd.Impl.State.PREPARING)
+        throw Exceptions.illegalState(state, "==State.PREPARING");
       this.run();
       try {
         return Stream.concat(
             output,
-            Stream.of(SENTINEL)
+            Stream.of(Cmd.SENTINEL)
         ).filter(
             o -> {
-              if (o == SENTINEL) {
+              if (o == Cmd.SENTINEL) {
                 close(false);
                 ////
                 // A sentinel shouldn't be passed to following stages.
@@ -230,22 +232,22 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
             }
         );
       } finally {
-        this.state = State.STARTED;
+        this.state = Cmd.Impl.State.RUNNING;
       }
     }
 
     @Override
     public synchronized int exitValue() {
-      if (this.state == State.NOT_STARTED)
-        throw Exceptions.illegalState(state, "!=State.NOT_STARTED");
+      if (this.state == Cmd.Impl.State.PREPARING)
+        throw Exceptions.illegalState(state, "!=State.PREPARING");
       return this.process.exitValue();
     }
 
     private void close(boolean abort) {
-      if (this.state == State.CLOSED)
+      if (this.state == Cmd.Impl.State.CLOSED)
         return;
-      if (this.state != State.STARTED)
-        throw Exceptions.illegalState(state, "==State.STARTED");
+      if (this.state != Cmd.Impl.State.RUNNING)
+        throw Exceptions.illegalState(state, "==State.RUNNING");
       boolean succeeded = false;
       try {
         if (this.isAlive())
@@ -253,7 +255,7 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
             this._abort();
           else
             this._waitFor();
-        succeeded = this.processConfig.exitValueChecker().test(this.exitValue());
+        succeeded = this.exitValue() == 0;
         if (!succeeded) {
           throw new UnexpectedExitValueException(
               this.exitValue(),
@@ -272,7 +274,7 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
             });
           }
         } else {
-          this.state = State.CLOSED;
+          this.state = Cmd.Impl.State.CLOSED;
         }
       }
       if (this.upstreamException != null)
@@ -281,9 +283,9 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
 
     @Override
     public synchronized int getPid() {
-      if (this.state == State.NOT_STARTED)
-        throw Exceptions.illegalState(this.state, "!=State.NOT_STARTED");
-      if (this.state != State.CLOSED)
+      if (this.state == Cmd.Impl.State.PREPARING)
+        throw Exceptions.illegalState(this.state, "!=State.PREPARING");
+      if (this.state != Cmd.Impl.State.CLOSED)
         this.close(false);
       return this.process.getPid();
     }
@@ -311,7 +313,7 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
 
     private synchronized void run() {
       this.process = startProcess(this.shell, this.command, this.processConfig);
-      this.output = this.process.getSelector().select();
+      this.output = this.process.getSelector().stream();
     }
 
     boolean isAlive() {

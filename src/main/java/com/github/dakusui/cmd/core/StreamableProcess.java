@@ -6,13 +6,12 @@ import com.github.dakusui.cmd.exceptions.Exceptions;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
-import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.IntPredicate;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 public class StreamableProcess extends Process {
@@ -21,13 +20,15 @@ public class StreamableProcess extends Process {
   private final Stream<String>   stderr;
   private final Consumer<String> stdin;
   private final Selector<String> selector;
+  private final Config           config;
 
   public StreamableProcess(Shell shell, String command, Config config) {
     this.process = createProcess(shell, command);
-    this.stdout = IoUtils.toStream(getInputStream(), config.charset());
-    this.stderr = IoUtils.toStream(getErrorStream(), config.charset());
+    this.config = requireNonNull(config);
+    this.stdout = IoUtils.toStream(this.getInputStream(), config.charset());
+    this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset());
     this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
-    this.selector = createSelector(config);
+    this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
   }
 
   private static Process createProcess(Shell shell, String command) {
@@ -47,7 +48,7 @@ public class StreamableProcess extends Process {
   }
 
   /**
-   * stdin
+   * from
    */
   @Override
   public OutputStream getOutputStream() {
@@ -55,7 +56,7 @@ public class StreamableProcess extends Process {
   }
 
   /**
-   * stdout
+   * to
    */
   @Override
   public InputStream getInputStream() {
@@ -86,7 +87,7 @@ public class StreamableProcess extends Process {
   }
 
   public void close() {
-    closeStreams();
+    //    closeStreams();
   }
 
   private void closeStreams() {
@@ -127,27 +128,22 @@ public class StreamableProcess extends Process {
     return getPid(this.process);
   }
 
-  private Selector<String> createSelector(Config config) {
+  private static Selector<String> createSelector(Config config, Consumer<String> stdin, Stream<String> stdout, Stream<String> stderr) {
     return new Selector.Builder<String>(
     ).add(
         config.stdin(),
-        this.stdin(),
+        stdin,
         false
     ).add(
-        this.stdout()
-            .filter(config.stdoutFilter()),
-        config.stdoutConsumer().andThen(s -> {
-              System.out.println("out:" + s);
-            }
-        ),
+        config.stdoutTransformer().apply(stdout),
+        config.stdoutConsumer(),
         true
     ).add(
-        this.stderr()
-            .filter(config.stderrFilter()),
+        config.stderrTransformer().apply(stderr),
         config.stderrConsumer().andThen(s -> {
           System.err.println("err:" + s);
         }),
-        true
+        false
     ).build();
   }
 
@@ -172,138 +168,99 @@ public class StreamableProcess extends Process {
     return selector;
   }
 
-  public interface Config {
-    Stream<String> stdin();
+  public Config getConfig() {
+    return config;
+  }
 
-    Consumer<String> stdoutConsumer();
+  public static class Config {
+    private Builder builder;
 
-    Predicate<String> stdoutFilter();
-
-    Consumer<String> stderrConsumer();
-
-    Predicate<String> stderrFilter();
-
-    IntPredicate exitValueChecker();
-
-    Charset charset();
-
-    static Config create() {
-      return builder().build();
+    Config(Builder builder) {
+      this.builder = builder;
     }
 
-    static Config.Builder builder() {
+    Stream<String> stdin() {
+      return Stream.concat(
+          builder.stdin,
+          Stream.of((String) null)
+      );
+    }
+
+    Consumer<String> stdoutConsumer() {
+      return builder.stdoutConsumer;
+    }
+
+    Consumer<String> stderrConsumer() {
+      return builder.stderrConsumer;
+    }
+
+    Function<Stream<String>, Stream<String>> stdoutTransformer() {
+      return builder.stdoutTransformer;
+    }
+
+    Function<Stream<String>, Stream<String>> stderrTransformer() {
+      return builder.stderrTransformer;
+    }
+
+    public Charset charset() {
+      return builder.charset;
+    }
+
+    public static Config.Builder builder() {
       return builder(Stream.empty());
     }
 
-    static Config.Builder builder(Stream<String> stdin) {
-      return new Config.Builder(stdin);
+    public static Config.Builder builder(Stream<String> stdin) {
+      return new Config.Builder().configureStdin(stdin);
     }
 
-    class Builder {
+    public static class Builder {
       private static final Consumer<String> NOP = s -> {
       };
 
-      Stream<String>    stdin;
-      Consumer<String>  stdoutConsumer;
-      Predicate<String> stdoutFilter;
-      Consumer<String>  stderrConsumer;
-      Predicate<String> stderrFilter;
-      IntPredicate      exitValueChecker;
-      Charset           charset;
+      Stream<String>                           stdin;
+      Consumer<String>                         stdoutConsumer;
+      Function<Stream<String>, Stream<String>> stdoutTransformer;
+      Consumer<String>                         stderrConsumer;
+      Function<Stream<String>, Stream<String>> stderrTransformer;
+      Charset                                  charset;
 
-      public Builder(Stream<String> stdin) {
-        this.configureStdin(stdin);
+      public Builder() {
+      }
+
+      public Builder init() {
         this.charset(Charset.defaultCharset());
-        this.checkExitValueWith(value -> value == 0);
-        this.configureStdout(NOP, s -> true);
-        this.configureStderr(NOP, s -> false);
+        this.configureStdout(NOP, s -> s);
+        this.configureStderr(NOP, s -> s.filter(t -> false));
+        return this;
       }
 
       public Builder configureStdin(Stream<String> stdin) {
-        this.stdin = Objects.requireNonNull(stdin);
+        this.stdin = requireNonNull(stdin);
         return this;
       }
 
-      public Builder configureStdout(Consumer<String> consumer) {
-        return this.configureStdout(consumer, this.stdoutFilter);
-      }
-
-      public Builder configureStdout(Consumer<String> consumer, Predicate<String> stdoutFilter) {
-        this.stdoutConsumer = Objects.requireNonNull(consumer);
-        this.stdoutFilter = Objects.requireNonNull(stdoutFilter);
+      public Builder configureStdout(Consumer<String> consumer, Function<Stream<String>, Stream<String>> stdoutTransformer) {
+        this.stdoutConsumer = requireNonNull(consumer);
+        this.stdoutTransformer = requireNonNull(stdoutTransformer);
         return this;
       }
 
-      public Builder configureStderr(Consumer<String> consumer) {
-        return this.configureStderr(consumer, this.stderrFilter);
-      }
-
-      public Builder configureStderr(Consumer<String> consumer, Predicate<String> stdoutFilter) {
-        this.stderrConsumer = Objects.requireNonNull(consumer);
-        this.stderrFilter = Objects.requireNonNull(stdoutFilter);
-        return this;
-      }
-
-      public Builder checkExitValueWith(IntPredicate exitValueChecker) {
-        this.exitValueChecker = Objects.requireNonNull(exitValueChecker);
+      public Builder configureStderr(Consumer<String> consumer, Function<Stream<String>, Stream<String>> stderrTransformer) {
+        this.stderrConsumer = requireNonNull(consumer);
+        this.stderrTransformer = requireNonNull(stderrTransformer);
         return this;
       }
 
       public Builder charset(Charset charset) {
-        this.charset = Objects.requireNonNull(charset);
+        this.charset = requireNonNull(charset);
         return this;
       }
 
       public Config build() {
-        return new Impl(this);
+        return new Config(this);
       }
 
-    }
-
-    class Impl implements Config {
-      private Builder builder;
-
-      Impl(Builder builder) {
-        this.builder = builder;
-      }
-
-      @Override
-      public Stream<String> stdin() {
-        return Stream.concat(
-            builder.stdin,
-            Stream.of((String) null)
-        );
-      }
-
-      @Override
-      public Consumer<String> stdoutConsumer() {
-        return builder.stdoutConsumer;
-      }
-
-      @Override
-      public Consumer<String> stderrConsumer() {
-        return builder.stderrConsumer;
-      }
-
-      @Override
-      public Predicate<String> stdoutFilter() {
-        return builder.stdoutFilter;
-      }
-
-      @Override
-      public Predicate<String> stderrFilter() {
-        return builder.stderrFilter;
-      }
-
-      @Override
-      public IntPredicate exitValueChecker() {
-        return builder.exitValueChecker;
-      }
-
-      @Override
-      public Charset charset() {
-        return builder.charset;
-      }
     }
   }
 }

@@ -51,6 +51,10 @@ public interface Shell {
     public List<String> options() {
       return options;
     }
+
+    public String toString() {
+      return String.format("%s %s", program, String.join(" ", options));
+    }
   }
 
   abstract class Builder<B extends Builder> {

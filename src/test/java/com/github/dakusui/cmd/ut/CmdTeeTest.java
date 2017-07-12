@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.CompatCmd;
+import com.github.dakusui.cmd.tmp.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
@@ -30,7 +30,7 @@ public class CmdTeeTest {
     boolean result = CompatCmd.local(
         "cat non-existing-file"
     ).configure(
-        new StreamableProcess.Config.Builder(in).build()
+        new StreamableProcess.Config.Builder().configureStdin(in).build()
     ).build().tee(
     ).connect(
         s -> out.add(TestUtils.item("LEFT", s))
@@ -46,10 +46,7 @@ public class CmdTeeTest {
     boolean result = CompatCmd.local(
         "cat -n"
     ).configure(
-        new StreamableProcess.Config.Builder(in.filter(s -> {
-          System.out.printf("<%s>%n", s);
-          return true;
-        })).build()
+        new StreamableProcess.Config.Builder().build()
     ).build().tee(
     ).connect(
         s -> out.add(TestUtils.item("LEFT", s))

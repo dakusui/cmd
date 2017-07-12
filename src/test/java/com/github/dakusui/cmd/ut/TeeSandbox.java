@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.CompatCmd;
+import com.github.dakusui.cmd.tmp.CompatCmd;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;

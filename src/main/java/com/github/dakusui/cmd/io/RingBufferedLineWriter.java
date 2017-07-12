@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.io;
 
-import com.github.dakusui.cmd.CompatCmd;
+import com.github.dakusui.cmd.tmp.CompatCmd;
 
 /**
  * This class is not necessary anymore.

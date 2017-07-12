@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.CompatCmd;
+import com.github.dakusui.cmd.tmp.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.hamcrest.CoreMatchers;
@@ -15,7 +15,7 @@ public class CmdStateTest extends TestUtils.TestBase {
     try {
       cmd.exitValue();
     } catch (IllegalStateException e) {
-      assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<NOT_STARTED>"));
+      assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<PREPARING>"));
       throw e;
     }
   }
@@ -26,7 +26,7 @@ public class CmdStateTest extends TestUtils.TestBase {
     try {
       cmd.abort();
     } catch (IllegalStateException e) {
-      assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<NOT_STARTED>"));
+      assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<PREPARING>"));
       throw e;
     }
   }
@@ -37,7 +37,7 @@ public class CmdStateTest extends TestUtils.TestBase {
     try {
       cmd.getPid();
     } catch (IllegalStateException e) {
-      assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<NOT_STARTED>"));
+      assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<PREPARING>"));
       throw e;
     }
   }

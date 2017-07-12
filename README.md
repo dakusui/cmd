@@ -1,6 +1,6 @@
 # cmd
 
-A library for Java 8 to run a shell command using a stream easily on Unix platforms. 
+A library for Java 8 to run a shell command using a to easily on Unix platforms. 
 
 Creating a program that executes a shell command from Java is a tedious task but 
 there are a lot of pitfalls.
@@ -8,19 +8,19 @@ there are a lot of pitfalls.
 This library does it on behalf of you. To run '''echo hello''', you can simply do
 
 ```java
-    Cmd.cmd(Shell.local(), "echo hello").stream().forEach(System.out::println);
+    Cmd.cmd(Shell.local(), "echo hello").to().forEach(System.out::println);
 ```
 
 To do it over ```ssh```, do
 
 ```java
-    Cmd.cmd(Shell.ssh("yourName", "yourHost"), "echo hello").stream().forEach(System.out::println);
+    Cmd.cmd(Shell.ssh("yourName", "yourHost"), "echo hello").to().forEach(System.out::println);
 ```
 
 If you want to specity an identity file (ssh key), you can do
 
 ```java
-    Cmd.cmd(Shell.ssh("yourName", "yourHost", "/home/yourName/.ssh/id_rsa"), "echo hello").stream().forEach(System.out::println);
+    Cmd.cmd(Shell.ssh("yourName", "yourHost", "/home/yourName/.ssh/id_rsa"), "echo hello").to().forEach(System.out::println);
 ```
 
 Enjoy.
@@ -47,15 +47,15 @@ Enjoy.
     Cmd.cmd(
         Shell.local(),
         "echo hello && echo world"
-    ).connect(
+    ).to(
         "cat -n"
-    ).connect(
+    ).to(
         "sort -r"
-    ).connect(
+    ).to(
         "sed 's/hello/HELLO/'"
-    ).connect(
+    ).to(
         "sed -E 's/^ +//'"
-    ).stream(
+    ).to(
     ).map(
         s -> String.format("<%s>", s)
     ).forEach(
@@ -71,20 +71,20 @@ Enjoy.
         Shell.local(),
         "seq 1 10000"
     ).tee(
-    ).connect(
+    ).to(
         in -> Cmd.cmd(
             Shell.local(),
             "cat -n",
             in
-        ).stream(
+        ).to(
         ),
         s -> System.out.println("LEFT:" + s)
-    ).connect(
+    ).to(
         in -> Cmd.cmd(
             Shell.local(),
             "cat -n",
             in
-        ).stream(),
+        ).to(),
         s -> System.out.println("RIGHT:" + s)
     ).run();
 

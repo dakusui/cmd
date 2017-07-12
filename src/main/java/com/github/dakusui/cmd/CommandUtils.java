@@ -6,6 +6,7 @@ import com.github.dakusui.cmd.exceptions.CommandException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.io.RingBufferedLineWriter;
+import com.github.dakusui.cmd.tmp.CompatCmd;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,19 +46,18 @@ public enum CommandUtils {
         .withShell(shell)
         .add(command)
         .configure(
-            StreamableProcess.Config.builder(Stream.empty()).configureStdout(s -> {
-              stdout.write(s);
-              stdouterr.write(s);
-            }).configureStderr(s -> {
-              stderr.write(s);
-              stdouterr.write(s);
-            }).checkExitValueWith(exitValue -> {
-              synchronized (exitValueHolder) {
-                exitValueHolder.set(exitValue);
-                exitValueHolder.notifyAll();
-                return exitValue == 0;
-              }
-            }).build()
+            StreamableProcess.Config.builder(Stream.empty()).init().configureStdout(s -> {
+                  stdout.write(s);
+                  stdouterr.write(s);
+                },
+                s -> s
+            ).configureStderr(
+                s -> {
+                  stderr.write(s);
+                  stdouterr.write(s);
+                },
+                s -> s
+            ).build()
         ).build();
 
     final Callable<CommandResult> callable = () -> {

@@ -359,7 +359,7 @@ public class CommandRunnerTest {
     try {
       String userName = CommandUtils.runLocal("whoami").stdout();
       String hostName = CommandUtils.runLocal("hostname").stdout();
-      //String privKey  = String.format("%s/.ssh/id_rsa", CommandUtils.runLocal("echo $HOME").stdout());
+      //String privKey  = String.format("%s/.ssh/id_rsa", CommandUtils.runLocal("echo $HOME").to());
       String privKey = TestUtils.identity();
 
       CommandResult result = CommandUtils.runRemote(userName, hostName, privKey, "echo hello1");
@@ -369,7 +369,7 @@ public class CommandRunnerTest {
       finished = true;
     } finally {
       if (!finished) {
-        LOGGER.error("In order to make this test pass, you have to set up your passphraseless ssh key");
+        LOGGER.error("In order to make this test pass, you have to set from your passphraseless ssh key");
       }
     }
   }

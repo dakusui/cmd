@@ -1,7 +1,8 @@
 package com.github.dakusui.cmd.utils;
 
-import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.exceptions.Exceptions;
+import com.github.dakusui.cmd.tmp.CompatCmd;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.DiagnosingMatcher;
@@ -52,7 +53,7 @@ public enum TestUtils {
   }
 
   /**
-   * A base class for tests which writes to stdout/stderr.
+   * A base class for tests which writes to to/stderr.
    */
   public static class TestBase {
     @Before
@@ -256,6 +257,23 @@ public enum TestUtils {
     });
 
     return count.get();
+  }
+
+  public static boolean terminatesIn(Runnable runnable, long millis) {
+    Thread t = new Thread(runnable);
+    t.start();
+    try {
+      long before = System.currentTimeMillis();
+      while (true) {
+        if (System.currentTimeMillis() - before >= millis)
+          return Thread.State.TERMINATED.equals(t.getState());
+        if (Thread.State.TERMINATED.equals(t.getState()))
+          return true;
+        Thread.sleep(1);
+      }
+    } catch (InterruptedException e) {
+      throw Exceptions.wrap(e);
+    }
   }
 
   public static class SelfTest {

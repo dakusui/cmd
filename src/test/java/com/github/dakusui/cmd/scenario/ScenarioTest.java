@@ -1,15 +1,11 @@
 package com.github.dakusui.cmd.scenario;
 
-import com.github.dakusui.cmd.CompatCmd;
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.StreamableProcess;
-import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.utils.TestUtils;
 import com.github.dakusui.jcunit8.factorspace.Parameter;
 import com.github.dakusui.jcunit8.runners.junit4.JCUnit8;
 import com.github.dakusui.jcunit8.runners.junit4.annotations.Condition;
 import com.github.dakusui.jcunit8.runners.junit4.annotations.From;
-import com.github.dakusui.jcunit8.runners.junit4.annotations.Given;
 import com.github.dakusui.jcunit8.runners.junit4.annotations.ParameterSource;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -18,18 +14,13 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(JCUnit8.class)
 public class ScenarioTest extends TestUtils.TestBase {
@@ -37,7 +28,7 @@ public class ScenarioTest extends TestUtils.TestBase {
   private static final Consumer<String> NOP    = s -> {
   };
   /**
-   * If you make this a method reference, you cannot suppress output to stdout
+   * If you make this a method reference, you cannot suppress output to to
    * even if you are using TestUtils.TestBase.
    */
   @SuppressWarnings("Convert2MethodRef")
@@ -124,7 +115,7 @@ public class ScenarioTest extends TestUtils.TestBase {
   public void print(
       @From("shell") Shell shell,
       @From("command") String[] command,
-      @From("stdin") List<String> stdin,
+      @From("from") List<String> stdin,
       @From("stdoutConsumer") Consumer<String> stdoutConsumer,
       @From("redirectsStdout") boolean redirectsStdout,
       @From("stderrConsumer") Consumer<String> stderrConsumer,
@@ -132,17 +123,17 @@ public class ScenarioTest extends TestUtils.TestBase {
   ) {
     System.out.printf("shell='%s'%n", String.join(" ", shell.format()));
     System.out.printf("command='%s'%n", String.join(" ", command));
-    System.out.printf("stdin='%s'%n", stdin);
+    System.out.printf("from='%s'%n", stdin);
     System.out.printf("stdoutConsumer='%s'(%s)%n", stdoutConsumer, redirectsStdout);
     System.out.printf("stderrConsumer='%s'(%s)%n", stderrConsumer, redirectsStderr);
   }
-
+/*
   @Test(timeout = 15_000)
   @Given("commandShouldExitWithZero")
   public void whenRunCommand$thenExpectedDataWrittenToStdout(
       @From("shell") Shell shell,
       @From("command") String[] command,
-      @From("stdin") List<String> stdin,
+      @From("from") List<String> stdin,
       @From("stdoutConsumer") Consumer<String> stdoutConsumer,
       @From("redirectsStdout") boolean redirectsStdout,
       @From("stderrConsumer") Consumer<String> stderrConsumer,
@@ -163,13 +154,14 @@ public class ScenarioTest extends TestUtils.TestBase {
     );
     assertThat(stdout, stdoutMatcher(stdin, cmdLine, redirectsStdout));
   }
-
+  */
+/*
   @Test(timeout = 5_000)
   @Given("commandShouldExitWithZero")
   public void whenRunCommandGetPidAndDestroy$thenNotBlocked(
       @From("shell") Shell shell,
       @From("command") String[] command,
-      @From("stdin") List<String> stdin,
+      @From("from") List<String> stdin,
       @From("stdoutConsumer") Consumer<String> stdoutConsumer,
       @From("redirectsStdout") boolean redirectsStdout,
       @From("stderrConsumer") Consumer<String> stderrConsumer,
@@ -192,13 +184,14 @@ public class ScenarioTest extends TestUtils.TestBase {
     System.out.println("pid=" + pid);
     assertTrue("pid=" + pid, pid > 0);
   }
-
+  */
+/*
   @Test(expected = UnexpectedExitValueException.class)
   @Given("!commandShouldExitWithZero")
   public void whenRunCommand$thenCommandExecutionExceptionThrown(
       @From("shell") Shell shell,
       @From("command") String[] command,
-      @From("stdin") List<String> stdin,
+      @From("from") List<String> stdin,
       @From("stdoutConsumer") Consumer<String> stdoutConsumer,
       @From("redirectsStdout") boolean redirectsStdout,
       @From("stderrConsumer") Consumer<String> stderrConsumer,
@@ -226,7 +219,8 @@ public class ScenarioTest extends TestUtils.TestBase {
       throw e;
     }
   }
-
+  */
+/*
   private CompatCmd buildCommand(
       Shell shell,
       String[] command,
@@ -244,6 +238,7 @@ public class ScenarioTest extends TestUtils.TestBase {
         .addAll(asList(command))
         .build();
   }
+  */
 
   private Matcher<List<String>> stdoutMatcher(List<String> stdin, String command, boolean redirectsStdout) {
     return new BaseMatcher<List<String>>() {
@@ -268,7 +263,7 @@ public class ScenarioTest extends TestUtils.TestBase {
       public void describeTo(Description description) {
         description
             .appendText("expectation(")
-            .appendText("stdin:").appendValue(stdin).appendText(",")
+            .appendText("from:").appendValue(stdin).appendText(",")
             .appendText("command:").appendValue(command).appendText(",")
             .appendText("redirectsStdout:").appendValue(redirectsStdout)
             .appendText(")=")
