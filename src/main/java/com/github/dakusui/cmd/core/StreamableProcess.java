@@ -21,14 +21,18 @@ public class StreamableProcess extends Process {
   private final Consumer<String> stdin;
   private final Selector<String> selector;
   private final Config           config;
+  private final String           command;
+  private final Shell            shell;
 
   public StreamableProcess(Shell shell, String command, Config config) {
     this.process = createProcess(shell, command);
     this.config = requireNonNull(config);
     this.stdout = IoUtils.toStream(this.getInputStream(), config.charset());
     this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset());
-    this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
+    this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset()).andThen(s -> System.out.printf("INFO:StreamableProcess:stdin:%s:%s%n", this, s));
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
+    this.shell = shell;
+    this.command = command;
   }
 
   private static Process createProcess(Shell shell, String command) {
@@ -83,22 +87,17 @@ public class StreamableProcess extends Process {
 
   @Override
   public void destroy() {
+    System.out.println("BEGIN:StreamableProcess:destroy:" + this);
     process.destroy();
+    this.closeStreams();
+    System.out.println("END:StreamableProcess:destroy:" + this);
   }
 
-  public void close() {
-    //    closeStreams();
+  @Override
+  public String toString() {
+    return String.format("StreamableProcess:%s %s", this.shell, this.command);
   }
 
-  private void closeStreams() {
-    try {
-      this.stdin().accept(null);
-    } finally {
-      for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
-        eachStream.close();
-      }
-    }
-  }
 
   /**
    * Returns a {@code Stream<String>} object that represents standard output
@@ -128,6 +127,16 @@ public class StreamableProcess extends Process {
     return getPid(this.process);
   }
 
+  private void closeStreams() {
+    try {
+      this.stdin().accept(null);
+    } finally {
+      for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
+        eachStream.close();
+      }
+    }
+  }
+
   private static Selector<String> createSelector(Config config, Consumer<String> stdin, Stream<String> stdout, Stream<String> stderr) {
     return new Selector.Builder<String>(
     ).add(
@@ -140,9 +149,7 @@ public class StreamableProcess extends Process {
         true
     ).add(
         config.stderrTransformer().apply(stderr),
-        config.stderrConsumer().andThen(s -> {
-          System.err.println("err:" + s);
-        }),
+        config.stderrConsumer(),
         false
     ).build(
     );

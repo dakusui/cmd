@@ -26,17 +26,18 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
           Object next = null;
 
           @Override
-          public boolean hasNext() {
+          public synchronized boolean hasNext() {
             readNextIfNotYet();
             return next != Cmd.SENTINEL;
           }
 
           @Override
-          public E next() {
+          public synchronized E next() {
             readNextIfNotYet();
             if (next == Cmd.SENTINEL)
               throw new NoSuchElementException();
             try {
+              //noinspection unchecked
               return (E) next;
             } finally {
               next = null;
@@ -58,7 +59,7 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
   }
 
   @Override
-  public void accept(E e) {
+  public synchronized void accept(E e) {
     if (closed)
       //noinspection ConstantConditions
       throw Exceptions.illegalState(closed, "closed==false");
@@ -70,7 +71,14 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
   }
 
   private void close() {
+    System.out.println("BEGIN:StreamableQueue:close:" + this);
+    if (closed)
+      return;
     queue.add(Cmd.SENTINEL);
+    synchronized (queue) {
+      queue.notifyAll();
+    }
     closed = true;
+    System.out.println("END:StreamableQueue:close:" + this);
   }
 }

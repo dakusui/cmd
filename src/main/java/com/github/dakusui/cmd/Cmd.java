@@ -75,6 +75,8 @@ public interface Cmd {
    */
   Cmd readFrom(Supplier<Stream<String>> stdin);
 
+  Supplier<Stream<String>> stdin();
+
   /**
    * A stream returned by this method should be closed by {@code close()} when the
    * returned stream does not reach its end.
@@ -165,7 +167,7 @@ public interface Cmd {
     private final List<Cmd>                                downstreams;
     private       State                                    state;
     private       StreamableProcess                        process;
-    private Supplier<Stream<String>> stdin = Stream::empty;
+    private Supplier<Stream<String>> stdin = null;//Stream::empty;
 
     private Impl(Shell shell, String command, IntPredicate exitValueChecker, Function<Stream<String>, Stream<String>> inputTransformer, Function<Stream<String>, Stream<String>> outputTransformer, Function<Stream<String>, Stream<String>> stderrTransformer, Consumer<String> stderrConsumer, Charset charset) {
       this.exitValueChecker = requireNonNull(exitValueChecker);
@@ -184,8 +186,19 @@ public interface Cmd {
     synchronized public Cmd readFrom(Supplier<Stream<String>> stdin) {
       requireNonNull(stdin);
       requireState(State.PREPARING);
+      if (this.stdin != null)
+        throw Exceptions.illegalState(this.stdin, "this.stdin==null");
       this.stdin = stdin;
       return this;
+    }
+
+    @Override
+    public synchronized Supplier<Stream<String>> stdin() {
+      if (this.stdin == null) {
+        this.stdin = new StreamableQueue<>(100);
+      }
+      //noinspection unchecked
+      return this.stdin;
     }
 
     @Override
@@ -230,18 +243,16 @@ public interface Cmd {
       ).map(
           o -> (String) o
       ).peek(
-          s -> {
-          }
+          System.err::println
       );
       if (!downstreams.isEmpty()) {
         if (downstreams.size() > 1)
           ret = ret.parallel();
-        List<StreamableQueue<String>> queues = new LinkedList<>();
         for (Cmd each : downstreams) {
-          StreamableQueue<String> queue = new StreamableQueue<>(100);
-          each.readFrom(queue);
-          ret = ret.peek(queue);
-          queues.add(queue);
+          Supplier<Stream<String>> stdin = each.stdin();
+          if (stdin instanceof StreamableQueue)
+            //noinspection unchecked
+            ret = ret.peek((Consumer<? super String>) stdin);
         }
         Stream<String> up = ret;
         Selector.Builder<String> builder = new Selector.Builder<String>().add(
@@ -251,12 +262,11 @@ public interface Cmd {
                 )
             ).peek(
                 (String s) -> {
-                  if (s == null)
-                    for (StreamableQueue<String> each : queues)
-                      each.accept(null);
+                  if (s == null) {
+                    downstreams.stream().map(each -> each.stdin()).filter(i -> i instanceof Consumer).map(i -> Consumer.class.cast(i)).forEach(c -> c.accept(null));
+                    process.stdin().accept(null);
+                  }
                 }
-            ).filter(
-                Objects::<String>nonNull
             ),
             Selector.nop(),
             false
@@ -264,7 +274,7 @@ public interface Cmd {
         downstreams.forEach(each -> builder.add(each.stream(), Selector.nop(), true));
         ret = builder.build().stream();
       }
-      return ret;
+      return ret.peek(s -> System.out.printf("INFO:Cmd:stream:%s:%s%n", this, s));
     }
 
     @Override
@@ -285,7 +295,6 @@ public interface Cmd {
 
     @Override
     public void abort() {
-      this.process.stdin().accept(null);
       close(true);
     }
 
@@ -305,19 +314,30 @@ public interface Cmd {
     }
 
 
-    synchronized private void close(boolean abort) {
+    synchronized private void close(boolean immediate) {
+      System.out.printf("BEGIN:Cmd:close(%s;immediate=%s)%n", this, immediate);
       requireState(State.RUNNING, State.CLOSED);
+      boolean abort = immediate || (!this.process.isAlive() && !this.exitValueChecker.test(this.process.exitValue()));
+      System.out.printf("INFO:Cmd:close(%s;abort=%s)%n", this, abort);
       if (this.state == Cmd.Impl.State.CLOSED)
         return;
       try {
-        if (this.process.isAlive())
-          if (abort)
-            this._abort();
-          else
-            this._waitFor();
+        System.out.printf("INFO:Cmd:close(%s;isAlive=%s)%n", this, this.process.isAlive());
         if (abort)
+          this._abort();
+        while (this.process.isAlive())
+          this._waitFor();
+        ////
+        // By this point, the process should be finished.
+        boolean failed = !this.exitValueChecker.test(this.process.exitValue());
+        System.out.printf("INFO:Cmd:close(%s;failed=%s)%n", this, failed);
+        if (abort || failed) {
           downstreams.stream().map(each -> {
             try {
+              Supplier<Stream<String>> stdin = each.stdin();
+              if (stdin instanceof Consumer)
+                //noinspection unchecked
+                ((Consumer) each.stdin()).accept(null);
               each.abort();
               return new RuntimeException("command aborted:" + each);
             } catch (RuntimeException e) {
@@ -331,8 +351,9 @@ public interface Cmd {
           ).findFirst().ifPresent(e -> {
             throw e;
           });
+        }
 
-        if (!this.exitValueChecker.test(this.process.exitValue())) {
+        if (failed) {
           throw new UnexpectedExitValueException(
               this.process.exitValue(),
               this.toString(),
@@ -341,26 +362,26 @@ public interface Cmd {
         }
       } finally {
         this.state = Cmd.State.CLOSED;
+        System.out.printf("END:Cmd:close(%s;immediate=%s)%n", this, immediate);
       }
     }
 
 
     private void _abort() {
-      System.out.println("_aborting");
+      System.out.println("BEGIN:Cmd:_abort:" + this);
       this.process.destroy();
-      System.out.println("_aborted");
+      System.out.println("END:Cmd:_abort:" + this);
     }
 
     private void _waitFor() {
+      System.out.println("BEGIN:Cmd:_waitFor:" + this);
       try {
         process.waitFor();
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
-      } finally {
-        this.process.close();
       }
+      System.out.println("END:Cmd:_waitFor:" + this);
     }
-
 
     private void requireState(State... states) {
       for (State s : states)
@@ -374,7 +395,11 @@ public interface Cmd {
     private StreamableProcess.Config composeProcessConfig() {
       return StreamableProcess.Config.builder(
       ).configureStdin(
-          this.inputTransformer.apply(this.stdin.get())
+          this.inputTransformer.apply(
+              this.stdin == null ?
+                  Stream.empty() :
+                  this.stdin.get()
+          )
       ).configureStdout(
           n -> {
           },

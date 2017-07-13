@@ -331,20 +331,14 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
     }
 
     private void _abort() {
-      try {
-        this.process.destroy();
-      } finally {
-        this.process.close();
-      }
+      this.process.destroy();
     }
 
     private void _waitFor() {
       try {
-        process.waitFor();
+        this.process.waitFor();
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
-      } finally {
-        this.process.close();
       }
     }
 

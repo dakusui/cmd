@@ -35,6 +35,10 @@ public enum TestUtils {
     return MatcherBuilder.create();
   }
 
+  public static <T, U> MatcherBuilder<T, U> matcherBuilder(String name, Function<T, U> transformer) {
+    return MatcherBuilder.<T, U>create().<T, U>transform(name, transformer);
+  }
+
   public static String base64() {
     String systemName = systemName();
     String ret;
@@ -207,12 +211,25 @@ public enum TestUtils {
       protected boolean matches(Object o, Description mismatch) {
         boolean ret = true;
         for (Matcher<? super T> matcher : matchers) {
-          if (!matcher.matches(o)) {
+          try {
+            if (!matcher.matches(o)) {
+              if (ret)
+                mismatch.appendText("(");
+              mismatch.appendText("\n  ");
+              mismatch.appendDescriptionOf(matcher).appendText(" ");
+              matcher.describeMismatch(o, mismatch);
+              ret = false;
+            }
+          } catch (Exception e) {
             if (ret)
               mismatch.appendText("(");
             mismatch.appendText("\n  ");
-            mismatch.appendDescriptionOf(matcher).appendText(" ");
-            matcher.describeMismatch(o, mismatch);
+            mismatch
+                .appendDescriptionOf(matcher)
+                .appendText(" on ")
+                .appendValue(o)
+                .appendText(" ")
+                .appendText(String.format("failed with %s(%s)", e.getClass().getCanonicalName(), e.getMessage()));
             ret = false;
           }
         }
@@ -265,8 +282,12 @@ public enum TestUtils {
     try {
       long before = System.currentTimeMillis();
       while (true) {
-        if (System.currentTimeMillis() - before >= millis)
-          return Thread.State.TERMINATED.equals(t.getState());
+        if (System.currentTimeMillis() - before >= millis) {
+          boolean ret = Thread.State.TERMINATED.equals(t.getState());
+          if (!ret)
+            Arrays.stream(t.getStackTrace()).forEach(e -> System.out.println("\t" + e));
+          return ret;
+        }
         if (Thread.State.TERMINATED.equals(t.getState()))
           return true;
         Thread.sleep(1);
