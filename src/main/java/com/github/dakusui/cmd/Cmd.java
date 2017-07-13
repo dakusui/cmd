@@ -246,9 +246,6 @@ public interface Cmd {
         }
         Stream<String> up = ret;
         Selector.Builder<String> builder = new Selector.Builder<>();
-        for (Cmd each : downstreams) {
-          builder.add(each.stream(), Selector.nop(), true);
-        }
         builder.add(
             Stream.concat(
                 up,
@@ -266,6 +263,7 @@ public interface Cmd {
             Selector.<String>nop().andThen(System.err::println),
             false
         );
+        downstreams.forEach(each -> builder.add(each.stream(), Selector.nop(), true));
         ret = builder.build().stream();
       }
       System.out.println("END Cmd#stream:" + this);

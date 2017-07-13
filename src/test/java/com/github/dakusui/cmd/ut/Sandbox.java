@@ -4,7 +4,6 @@ import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.utils.TestUtils;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -19,11 +18,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class Sandbox {
-  @Before
-  public void before() throws InterruptedException {
-    //Thread.sleep(50);
-  }
-
   @Test(timeout = 3_000)
   public void streamExample1() {
     cmd(
@@ -91,7 +85,8 @@ public class Sandbox {
         Stream::empty
     ).pipeTo(
         cmd("sort").pipeTo(
-            cmd("cat -n"))
+            cmd("cat -n")
+        )
     ).stream(
     ).forEach(
         System.out::println
