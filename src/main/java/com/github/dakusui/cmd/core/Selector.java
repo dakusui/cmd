@@ -13,6 +13,11 @@ public interface Selector<T> {
   Stream<T> stream();
 
 
+  static <T> Consumer<T> nop() {
+    return e -> {
+    };
+  }
+
   static <T> Stream<T> select(Stream<T>... streams) {
     return select(Arrays.asList(streams));
   }

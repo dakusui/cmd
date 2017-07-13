@@ -144,7 +144,8 @@ public class StreamableProcess extends Process {
           System.err.println("err:" + s);
         }),
         false
-    ).build();
+    ).build(
+    );
   }
 
   private static int getPid(Process proc) {

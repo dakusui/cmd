@@ -14,10 +14,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.IntPredicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
@@ -200,6 +197,7 @@ public interface Cmd {
 
     @Override
     synchronized public Stream<String> stream() {
+      System.out.println("START Cmd#stream:" + this);
       requireState(State.PREPARING);
       this.process = startProcess(this.shell, this.command, composeProcessConfig());
       this.state = State.RUNNING;
@@ -247,32 +245,30 @@ public interface Cmd {
           queues.add(queue);
         }
         Stream<String> up = ret;
-        new Thread(() -> {
-          try {
-            up.forEach(s -> {
-            });
-          } finally {
-            queues.forEach(q -> q.accept(null));
-          }
-        }).start();
-        if (downstreams.size() > 1) {
-          Selector.Builder<String> builder = new Selector.Builder<>();
-          for (Cmd each : downstreams) {
-            builder.add(
-                each.stream(),
-                s -> {
-                },
-                true
-            );
-          }
-          ret = builder.build().stream();
-        } else {
-          ret = downstreams.get(0).stream();
+        Selector.Builder<String> builder = new Selector.Builder<>();
+        for (Cmd each : downstreams) {
+          builder.add(each.stream(), Selector.nop(), true);
         }
+        builder.add(
+            Stream.concat(
+                up,
+                Stream.of((String) null
+                )
+            ).peek(
+                s -> {
+                  if (s == null)
+                    for (StreamableQueue<String> each : queues)
+                      each.accept(null);
+                }
+            ).filter(
+                Objects::nonNull
+            ),
+            Selector.<String>nop().andThen(System.err::println),
+            false
+        );
+        ret = builder.build().stream();
       }
-      ret = ret.onClose(
-          this::abort
-      );
+      System.out.println("END Cmd#stream:" + this);
       return ret;
     }
 

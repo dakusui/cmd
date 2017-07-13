@@ -4,6 +4,8 @@ import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.utils.TestUtils;
+import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -17,19 +19,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class Sandbox {
-  @Test
-  public void test() {
-    Thread t = new Thread(() -> {
-      throw new RuntimeException("Hello");
-    });
-    t.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-      @Override
-      public void uncaughtException(Thread t, Throwable e) {
-        e.printStackTrace(System.out);
-        throw new RuntimeException("Hi", e);
-      }
-    });
-    t.start();
+  @Before
+  public void before() throws InterruptedException {
+    //Thread.sleep(50);
   }
 
   @Test(timeout = 3_000)
@@ -72,8 +64,42 @@ public class Sandbox {
     );
   }
 
-  @Test(timeout = 5_000)
+  @Test(timeout = 3_000)
   public void streamExample4() {
+    cmd(
+        "echo hello && echo world"
+    ).readFrom(
+        Stream::empty
+    ).pipeTo(
+        cmd(
+            "cat -n"
+        ),
+        cmd(
+            "cat -n"
+        )
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 5_000)
+  public void streamExample5() {
+    cmd(
+        "echo world && echo hello"
+    ).readFrom(
+        Stream::empty
+    ).pipeTo(
+        cmd("sort").pipeTo(
+            cmd("cat -n"))
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 5_000)
+  public void streamExample6() {
     cmd(
         "echo world && echo hello"
     ).readFrom(
@@ -103,7 +129,7 @@ public class Sandbox {
     );
   }
 
-  @Test(expected = RuntimeException.class)
+  @Test(timeout = 5_000, expected = RuntimeException.class)
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"
@@ -116,6 +142,7 @@ public class Sandbox {
     System.out.println(format("Shouldn't be executed.(tid=%d)", Thread.currentThread().getId()));
   }
 
+  @Ignore
   @Test
   public void failingStreamExample2b() {
     for (int i = 0; i < 100; i++) {
@@ -143,6 +170,19 @@ public class Sandbox {
     cmd(
         "echo hello"
     ).pipeTo(
+        cmd("unknownCommand -n")
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  public void failingStreamExample4() {
+    cmd(
+        "echo hello"
+    ).pipeTo(
+        cmd("cat -n"),
         cmd("unknownCommand -n")
     ).stream(
     ).forEach(
