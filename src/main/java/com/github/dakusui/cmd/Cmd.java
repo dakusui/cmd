@@ -197,7 +197,6 @@ public interface Cmd {
 
     @Override
     synchronized public Stream<String> stream() {
-      System.out.println("START Cmd#stream:" + this);
       requireState(State.PREPARING);
       this.process = startProcess(this.shell, this.command, composeProcessConfig());
       this.state = State.RUNNING;
@@ -245,28 +244,26 @@ public interface Cmd {
           queues.add(queue);
         }
         Stream<String> up = ret;
-        Selector.Builder<String> builder = new Selector.Builder<>();
-        builder.add(
+        Selector.Builder<String> builder = new Selector.Builder<String>().add(
             Stream.concat(
                 up,
                 Stream.of((String) null
                 )
             ).peek(
-                s -> {
+                (String s) -> {
                   if (s == null)
                     for (StreamableQueue<String> each : queues)
                       each.accept(null);
                 }
             ).filter(
-                Objects::nonNull
+                Objects::<String>nonNull
             ),
-            Selector.<String>nop().andThen(System.err::println),
+            Selector.nop(),
             false
         );
         downstreams.forEach(each -> builder.add(each.stream(), Selector.nop(), true));
         ret = builder.build().stream();
       }
-      System.out.println("END Cmd#stream:" + this);
       return ret;
     }
 
@@ -309,7 +306,6 @@ public interface Cmd {
 
 
     synchronized private void close(boolean abort) {
-      System.out.println(String.format("closing(abort=%s,tid=%d):%s", abort, Thread.currentThread().getId(), this));
       requireState(State.RUNNING, State.CLOSED);
       if (this.state == Cmd.Impl.State.CLOSED)
         return;

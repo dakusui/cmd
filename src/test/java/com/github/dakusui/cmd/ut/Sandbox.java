@@ -185,6 +185,20 @@ public class Sandbox {
     );
   }
 
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  public void failingStreamExample5() {
+    cmd(
+        "echo hello"
+    ).pipeTo(
+        cmd("unknownCommand -n").pipeTo(
+            cmd("cat -n")
+        )
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
   @Test(timeout = 5_000)
   public void streamableQueue() {
     List<String> path = Collections.synchronizedList(new LinkedList<>());
