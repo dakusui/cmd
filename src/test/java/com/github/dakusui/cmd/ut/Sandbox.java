@@ -180,12 +180,12 @@ public class Sandbox {
   public void streamExample5() {
     cmd(
         "echo world && echo Hello"
-    ).readFrom(
+    ).pipeTo(cmd(
+        "sort"
+    ).pipeTo(cmd(
+        "cat -n"
+    ))).readFrom(
         Stream::empty
-    ).pipeTo(
-        cmd("sort").pipeTo(
-            cmd("cat -n")
-        )
     ).stream(
     ).peek(
         System.out::println
@@ -270,6 +270,7 @@ public class Sandbox {
     );
   }
 
+  // Flakiness was seen 7/13/2017
   @Test(timeout = 3_000, expected = CommandExecutionException.class)
   public void failingStreamExample1() {
     cmd(

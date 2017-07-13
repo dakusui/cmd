@@ -2,6 +2,8 @@ package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.exceptions.Exceptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -15,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 public class StreamableProcess extends Process {
+  private static final Logger LOGGER = LoggerFactory.getLogger(StreamableProcess.class);
   private final Process          process;
   private final Stream<String>   stdout;
   private final Stream<String>   stderr;
@@ -29,7 +32,7 @@ public class StreamableProcess extends Process {
     this.config = requireNonNull(config);
     this.stdout = IoUtils.toStream(this.getInputStream(), config.charset());
     this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset());
-    this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset()).andThen(s -> System.out.printf("INFO:StreamableProcess:stdin:%s:%s%n", this, s));
+    this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
     this.shell = shell;
     this.command = command;
@@ -87,10 +90,10 @@ public class StreamableProcess extends Process {
 
   @Override
   public void destroy() {
-    System.out.println("BEGIN:StreamableProcess:destroy:" + this);
+    LOGGER.debug("BEGIN:destroy:{}", this);
     process.destroy();
     this.closeStreams();
-    System.out.println("END:StreamableProcess:destroy:" + this);
+    LOGGER.debug("END:destroy:{}", this);
   }
 
   @Override

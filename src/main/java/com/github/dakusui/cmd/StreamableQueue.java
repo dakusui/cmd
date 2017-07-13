@@ -1,6 +1,8 @@
 package com.github.dakusui.cmd;
 
 import com.github.dakusui.cmd.exceptions.Exceptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -12,7 +14,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
-  private boolean closed = false;
+  private static final Logger  LOGGER = LoggerFactory.getLogger(StreamableQueue.class);
+  private              boolean closed = false;
   private final BlockingQueue<Object> queue;
 
   public StreamableQueue(int queueSize) {
@@ -71,7 +74,7 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
   }
 
   private void close() {
-    System.out.println("BEGIN:StreamableQueue:close:" + this);
+    LOGGER.debug("BEGIN:close:{}", this);
     if (closed)
       return;
     queue.add(Cmd.SENTINEL);
@@ -79,6 +82,6 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
       queue.notifyAll();
     }
     closed = true;
-    System.out.println("END:StreamableQueue:close:" + this);
+    LOGGER.debug("END:close:{}", this);
   }
 }

@@ -167,7 +167,7 @@ public interface Cmd {
     private final List<Cmd>                                downstreams;
     private       State                                    state;
     private       StreamableProcess                        process;
-    private Supplier<Stream<String>> stdin = null;//Stream::empty;
+    private Supplier<Stream<String>> stdin = null;
 
     private Impl(Shell shell, String command, IntPredicate exitValueChecker, Function<Stream<String>, Stream<String>> inputTransformer, Function<Stream<String>, Stream<String>> outputTransformer, Function<Stream<String>, Stream<String>> stderrTransformer, Consumer<String> stderrConsumer, Charset charset) {
       this.exitValueChecker = requireNonNull(exitValueChecker);
@@ -193,7 +193,7 @@ public interface Cmd {
     }
 
     @Override
-    public synchronized Supplier<Stream<String>> stdin() {
+    synchronized public Supplier<Stream<String>> stdin() {
       if (this.stdin == null) {
         this.stdin = new StreamableQueue<>(100);
       }
@@ -242,8 +242,6 @@ public interface Cmd {
           }
       ).map(
           o -> (String) o
-      ).peek(
-          System.err::println
       );
       if (!downstreams.isEmpty()) {
         if (downstreams.size() > 1)
@@ -309,20 +307,20 @@ public interface Cmd {
     }
 
     public void dump(PrintStream out) {
-      out.println(String.format("%s.alive=%s", this, this.process.isAlive()));
+      LOGGER.debug("{}.alive={}", this, this.process.isAlive());
       downstreams.forEach((Cmd cmd) -> ((Cmd.Impl) cmd).dump(out));
     }
 
 
     synchronized private void close(boolean immediate) {
-      System.out.printf("BEGIN:Cmd:close(%s;immediate=%s)%n", this, immediate);
+      LOGGER.debug("BEGIN:close({};immediate={})", this, immediate);
       requireState(State.RUNNING, State.CLOSED);
       boolean abort = immediate || (!this.process.isAlive() && !this.exitValueChecker.test(this.process.exitValue()));
-      System.out.printf("INFO:Cmd:close(%s;abort=%s)%n", this, abort);
+      LOGGER.trace("INFO:close({};abort={})", this, abort);
       if (this.state == Cmd.Impl.State.CLOSED)
         return;
       try {
-        System.out.printf("INFO:Cmd:close(%s;isAlive=%s)%n", this, this.process.isAlive());
+        LOGGER.trace("INFO:close({};isAlive={})", this, this.process.isAlive());
         if (abort)
           this._abort();
         while (this.process.isAlive())
@@ -330,7 +328,7 @@ public interface Cmd {
         ////
         // By this point, the process should be finished.
         boolean failed = !this.exitValueChecker.test(this.process.exitValue());
-        System.out.printf("INFO:Cmd:close(%s;failed=%s)%n", this, failed);
+        LOGGER.trace("INFO:close({};failed={})", this, failed);
         if (abort || failed) {
           downstreams.stream().map(each -> {
             try {
@@ -362,25 +360,26 @@ public interface Cmd {
         }
       } finally {
         this.state = Cmd.State.CLOSED;
-        System.out.printf("END:Cmd:close(%s;immediate=%s)%n", this, immediate);
+        LOGGER.debug("END:close({};immediate={})", this, immediate);
       }
     }
 
 
     private void _abort() {
-      System.out.println("BEGIN:Cmd:_abort:" + this);
+      LOGGER.debug("BEGIN:_abort:{}", this);
       this.process.destroy();
-      System.out.println("END:Cmd:_abort:" + this);
+      LOGGER.debug("END:_abort:{}", this);
     }
 
     private void _waitFor() {
+      LOGGER.debug("BEGIN:_waitFor:{}", this);
       System.out.println("BEGIN:Cmd:_waitFor:" + this);
       try {
         process.waitFor();
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
       }
-      System.out.println("END:Cmd:_waitFor:" + this);
+      LOGGER.debug("END:_waitFor:{}", this);
     }
 
     private void requireState(State... states) {
