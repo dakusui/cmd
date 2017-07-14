@@ -1,8 +1,6 @@
 package com.github.dakusui.cmd.tmp;
 
 import com.github.dakusui.cmd.Cmd;
-import com.github.dakusui.cmd.CmdObservable;
-import com.github.dakusui.cmd.CmdObserver;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.core.Tee;

@@ -1,12 +1,10 @@
 package com.github.dakusui.cmd;
 
-import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
-import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.CommandException;
+import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.io.RingBufferedLineWriter;
-import com.github.dakusui.cmd.tmp.CompatCmd;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,7 +16,7 @@ import static java.util.Arrays.asList;
 /**
  * A helper class to provide compatibility with 'commandrunner' library. This class is kept only for compatibility.
  *
- * @see CompatCmd
+ * @see Cmd
  */
 @Deprecated
 public enum CommandUtils {
@@ -42,9 +40,10 @@ public enum CommandUtils {
     RingBufferedLineWriter stderr = new RingBufferedLineWriter(100);
     RingBufferedLineWriter stdouterr = new RingBufferedLineWriter(100);
     AtomicReference<Integer> exitValueHolder = new AtomicReference<>(null);
-    CompatCmd cmd = new CompatCmd.Builder()
-        .withShell(shell)
-        .add(command)
+    Cmd cmd = new Cmd.Builder()
+        .with(shell)
+        .command(command)
+        /* TODO 07/14/2017
         .configure(
             StreamableProcess.Config.builder(Stream.empty()).init().configureStdout(s -> {
                   stdout.write(s);
@@ -58,7 +57,8 @@ public enum CommandUtils {
                 },
                 s -> s
             ).build()
-        ).build();
+            */
+        .build();
 
     final Callable<CommandResult> callable = () -> {
       try {

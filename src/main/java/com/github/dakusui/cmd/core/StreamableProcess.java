@@ -80,7 +80,12 @@ public class StreamableProcess extends Process {
 
   @Override
   public int waitFor() throws InterruptedException {
-    return process.waitFor();
+    LOGGER.debug("BEGIN:waitFor:{}", this);
+    try {
+      return process.waitFor();
+    } finally {
+      LOGGER.debug("END:waitFor:{}", this);
+    }
   }
 
   @Override
@@ -92,7 +97,6 @@ public class StreamableProcess extends Process {
   public void destroy() {
     LOGGER.debug("BEGIN:destroy:{}", this);
     process.destroy();
-    this.closeStreams();
     LOGGER.debug("END:destroy:{}", this);
   }
 

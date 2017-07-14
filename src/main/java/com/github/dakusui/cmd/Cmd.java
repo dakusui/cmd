@@ -13,12 +13,13 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 public interface Cmd {
   Object SENTINEL = new Object();
@@ -64,6 +65,8 @@ public interface Cmd {
    * is run.
    */
   Shell getShell();
+
+  String getCommand();
 
   /**
    * Sets a stream of strings from which this object read data. If you do not call
@@ -272,7 +275,9 @@ public interface Cmd {
         downstreams.forEach(each -> builder.add(each.stream(), Selector.nop(), true));
         ret = builder.build().stream();
       }
-      return ret.peek(s -> System.out.printf("INFO:Cmd:stream:%s:%s%n", this, s));
+      return ret.peek(
+          s -> LOGGER.trace("INFO:stream:{}:{}", this, s)
+      );
     }
 
     @Override
@@ -289,6 +294,11 @@ public interface Cmd {
     @Override
     public Shell getShell() {
       return this.shell;
+    }
+
+    @Override
+    public String getCommand() {
+      return this.command;
     }
 
     @Override
@@ -317,38 +327,32 @@ public interface Cmd {
       requireState(State.RUNNING, State.CLOSED);
       boolean abort = immediate || (!this.process.isAlive() && !this.exitValueChecker.test(this.process.exitValue()));
       LOGGER.trace("INFO:close({};abort={})", this, abort);
-      if (this.state == Cmd.Impl.State.CLOSED)
+      if (this.state == Cmd.State.CLOSED)
         return;
       try {
         LOGGER.trace("INFO:close({};isAlive={})", this, this.process.isAlive());
         if (abort)
           this._abort();
-        while (this.process.isAlive())
-          this._waitFor();
+        int exitValue;
+        do {
+          exitValue = this._waitFor();
+        } while (this.process.isAlive());
         ////
         // By this point, the process should be finished.
-        boolean failed = !this.exitValueChecker.test(this.process.exitValue());
+        boolean failed = !this.exitValueChecker.test(exitValue);
         LOGGER.trace("INFO:close({};failed={})", this, failed);
         if (abort || failed) {
-          downstreams.stream().map(each -> {
-            try {
-              Supplier<Stream<String>> stdin = each.stdin();
-              if (stdin instanceof Consumer)
-                //noinspection unchecked
-                ((Consumer) each.stdin()).accept(null);
-              each.abort();
-              return new RuntimeException("command aborted:" + each);
-            } catch (RuntimeException e) {
-              return e;
-            }
-          }).filter(
-              Objects::nonNull
-          ).collect(
-              toList()
-          ).stream(
-          ).findFirst().ifPresent(e -> {
-            throw e;
-          });
+          downstreams.stream(
+          ).peek(each -> {
+            Supplier<Stream<String>> stdin = each.stdin();
+            if (stdin instanceof Consumer)
+              //noinspection unchecked
+              ((Consumer) each.stdin()).accept(null);
+            each.abort();
+          }).forEach(
+              e -> {
+              }
+          );
         }
 
         if (failed) {
@@ -371,15 +375,15 @@ public interface Cmd {
       LOGGER.debug("END:_abort:{}", this);
     }
 
-    private void _waitFor() {
+    private int _waitFor() {
       LOGGER.debug("BEGIN:_waitFor:{}", this);
-      System.out.println("BEGIN:Cmd:_waitFor:" + this);
       try {
-        process.waitFor();
+        return process.waitFor();
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
+      } finally {
+        LOGGER.debug("END:_waitFor:{}", this);
       }
-      LOGGER.debug("END:_waitFor:{}", this);
     }
 
     private void requireState(State... states) {

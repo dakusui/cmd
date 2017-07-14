@@ -26,12 +26,9 @@ public interface Selector<T> {
    *
    */
   static <T> Stream<T> select(List<Stream<T>> streams) {
-    Selector.Builder<T> builder = new Selector.Builder<T>();
-    for (Stream<T> each : streams) {
-      builder.add(each, s -> {
-      }, true);
-    }
-    return builder.build().stream();
+    return new Selector.Builder<T>() {{
+      streams.forEach(each -> add(each, nop(), true));
+    }}.build().stream();
   }
 
   class Builder<T> {

@@ -10,16 +10,18 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.Cmd.cmd;
 import static com.github.dakusui.cmd.utils.TestUtils.allOf;
+import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
 import static java.lang.String.format;
 import static org.junit.Assert.*;
 
 public class Sandbox {
-  List<String> out = Collections.synchronizedList(new LinkedList<>());
+  private List<String> out = Collections.synchronizedList(new LinkedList<>());
 
   @Test(timeout = 3_000)
   public void streamExample1() {
@@ -237,7 +239,6 @@ public class Sandbox {
         out::add
     );
 
-    // not calibrated yet 07/13/2017
     assertThat(
         out.stream().sorted().collect(Collectors.toList()),
         allOf(
@@ -282,22 +283,21 @@ public class Sandbox {
         out::add
     );
 
-    // not calibrated yet 07/13/2017
     assertThat(
         out.stream().sorted().collect(Collectors.toList()),
         allOf(
-            TestUtils.<List<String>, Integer>matcherBuilder(
-                "size", List::size
+            matcherBuilder(
+                "size", (Function<List<String>, Integer>) List::size
             ).check(
                 "==2", size -> size == 2
             ).build(),
-            TestUtils.<List<String>, String>matcherBuilder(
-                "elementAt0", o -> o.get(0)
+            matcherBuilder(
+                "elementAt0", (List<String> o) -> o.get(0)
             ).check(
                 "contains'1\tHello'", s -> s.contains("1\tHello")
             ).build(),
-            TestUtils.<List<String>, String>matcherBuilder(
-                "elementAt1", o -> o.get(1)
+            matcherBuilder(
+                "elementAt1", (List<String> o) -> o.get(1)
             ).check(
                 "contains'2\tworld'", s -> s.contains("2\tworld")
             ).build()
@@ -308,7 +308,7 @@ public class Sandbox {
   /*
    * Flaky
    */
-  @Test(timeout = 5_000, expected = RuntimeException.class)
+  @Test(timeout = 5_000, expected = CommandExecutionException.class)
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"
@@ -393,7 +393,6 @@ public class Sandbox {
 
   @Test(timeout = 5_000)
   public void streamableQueue() {
-    List<String> path = Collections.synchronizedList(new LinkedList<>());
     StreamableQueue<String> queue = new StreamableQueue<>(100);
     new Thread(() -> {
       try {
@@ -404,16 +403,40 @@ public class Sandbox {
       System.out.println("adding");
       queue.accept("Hello");
       //      queue.accept(null);
-      path.add("added:" + System.currentTimeMillis());
+      out.add("added");
     }).start();
-    assertFalse(TestUtils.terminatesIn(() -> queue.get().forEach(System.err::println), 2_000));
-    path.add("retrieved:" + System.currentTimeMillis());
-    System.out.println(path);
+    assertFalse(TestUtils.terminatesIn(() -> queue.get().peek(out::add).forEach(System.err::println), 2_000));
+    out.add("retrieved");
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==3", size -> size == 3
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='added'", s -> s.equals("added")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "=='Hello'", s -> s.equals("Hello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt2", o -> o.get(2)
+            ).check(
+                "=='retrieved'", s -> s.equals("retrieved")
+            ).build()
+        )
+    );
   }
 
   @Test(timeout = 5_000)
   public void streamableQueue2() {
-    List<String> path = Collections.synchronizedList(new LinkedList<>());
     StreamableQueue<String> queue = new StreamableQueue<>(100);
     new Thread(() -> {
       try {
@@ -424,10 +447,36 @@ public class Sandbox {
       System.out.println("adding");
       queue.accept("Hello");
       queue.accept(null);
-      path.add("added:" + System.currentTimeMillis());
+      out.add("added");
     }).start();
-    assertTrue(TestUtils.terminatesIn(() -> queue.get().forEach(System.err::println), 2_000));
-    path.add("retrieved:" + System.currentTimeMillis());
-    System.out.println(path);
+    assertTrue(TestUtils.terminatesIn(() -> queue.get().peek(System.out::println).forEach(out::add), 2_000));
+    out.add("retrieved");
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==3", size -> size == 3
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='added'", s -> s.equals("added")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "=='Hello'", s -> s.equals("Hello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt2", o -> o.get(2)
+            ).check(
+                "=='retrieved'", s -> s.equals("retrieved")
+            ).build()
+        )
+    );
+
   }
 }
