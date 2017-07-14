@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd.utils;
 
+import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.tmp.CompatCmd;
@@ -99,7 +100,7 @@ public enum TestUtils {
   public static String identity() {
     String key = "commandstreamer.identity";
     if (!System.getProperties().containsKey(key))
-      return String.format("%s/.ssh/id_rsa", CompatCmd.stream(Shell.local(), "echo $HOME").collect(Collectors.joining()));
+      return String.format("%s/.ssh/id_rsa", Cmd.cmd("echo $HOME").stream().collect(Collectors.joining()));
     return System.getProperty(key);
   }
 

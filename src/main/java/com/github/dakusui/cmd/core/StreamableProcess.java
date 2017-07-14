@@ -101,7 +101,7 @@ public class StreamableProcess extends Process {
 
   @Override
   public String toString() {
-    return String.format("StreamableProcess:%s %s", this.shell, this.command);
+    return String.format("StreamableProcess:%s '%s'", this.shell, this.command);
   }
 
 

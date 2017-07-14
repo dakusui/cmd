@@ -6,9 +6,11 @@ import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.io.RingBufferedLineWriter;
 
+import java.nio.charset.Charset;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 
 import static java.util.Arrays.asList;
 
@@ -43,28 +45,28 @@ public enum CommandUtils {
     Cmd cmd = new Cmd.Builder()
         .with(shell)
         .command(command)
-        /* TODO 07/14/2017
-        .configure(
-            StreamableProcess.Config.builder(Stream.empty()).init().configureStdout(s -> {
-                  stdout.write(s);
-                  stdouterr.write(s);
-                },
-                s -> s
-            ).configureStderr(
-                s -> {
-                  stderr.write(s);
-                  stdouterr.write(s);
-                },
-                s -> s
-            ).build()
-            */
+        .charset(Charset.defaultCharset())
+        .checkExitValue(((IntPredicate) (exitValue -> {
+          synchronized (exitValueHolder) {
+            exitValueHolder.set(exitValue);
+            exitValueHolder.notifyAll();
+          }
+          return true;
+        })).and(exitValue -> exitValue == 0))
+        .transformInput(s -> s)
+        .transformStdout(s -> s)
+        .consumeStdout(
+            ((Consumer<String>) (stdout::write)).andThen(stdouterr::write).andThen(System.err::println)
+        )
+        .transformStderr(s -> s)
+        .consumeStderr(
+            ((Consumer<String>) (stderr::write)).andThen(stdouterr::write).andThen(System.err::println)
+        )
         .build();
 
     final Callable<CommandResult> callable = () -> {
       try {
-        Stream<String> stream = cmd.stream();
-        stream.forEach(s -> {
-          System.out.println("s:" + s);
+        cmd.stream().forEach(s -> {
         });
         Integer exitValue;
         synchronized (exitValueHolder) {

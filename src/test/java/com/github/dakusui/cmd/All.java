@@ -19,7 +19,7 @@ import org.junit.runners.Suite;
     TeeTest.class,
     LineReaderTest.class,
     RingBufferedLineWriterTest.class,
-    CommandRunnerTest.class,
+    CommandUtilsTest.class,
     TeeTimeoutTest.class
 })
 public class All {

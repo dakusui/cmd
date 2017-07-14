@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.Cmd.cmd;
@@ -48,6 +49,41 @@ public class Sandbox {
                 "elementAt0", o -> o.get(0)
             ).check(
                 "=='hello'", "hello"::equals
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 3_000)
+  public void given100ConcatenatedEchoCommands$whenRun$thenNotBlockedAnd100LinesWritten() {
+    cmd(
+        IntStream.range(0, 100).mapToObj(i -> String.format("echo %d", i)).collect(Collectors.joining(" && "))
+    ).readFrom(
+        Stream::empty
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==100", size -> size == 100
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='0'", "0"::equals
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt99", o -> o.get(99)
+            ).check(
+                "=='99'", "99"::equals
             ).build()
         )
     );
@@ -271,8 +307,7 @@ public class Sandbox {
     );
   }
 
-  // Flakiness was seen 7/13/2017
-  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  @Test(timeout = 3_000, expected = RuntimeException.class)
   public void failingStreamExample1() {
     cmd(
         "unknownCommand hello"
@@ -308,7 +343,7 @@ public class Sandbox {
   /*
    * Flaky
    */
-  @Test(timeout = 5_000, expected = CommandExecutionException.class)
+  @Test(timeout = 5_000, expected = RuntimeException.class)
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"

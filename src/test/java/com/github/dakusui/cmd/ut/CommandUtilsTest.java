@@ -2,19 +2,19 @@ package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.CommandResult;
 import com.github.dakusui.cmd.CommandUtils;
-import com.github.dakusui.cmd.utils.TestUtils;
 import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
+import com.github.dakusui.cmd.utils.TestUtils;
 import junit.framework.TestCase;
 import org.hamcrest.CoreMatchers;
-import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import static com.github.dakusui.cmd.utils.TestUtils.base64;
 import static java.lang.String.format;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.junit.Assert.assertThat;
 
-public class CommandRunnerTest {
+public class CommandUtilsTest {
   /**
    * A dummy logger class for compatibility
    */
@@ -33,14 +33,34 @@ public class CommandRunnerTest {
   };
 
   private void assertCommandResult(String stdout, String stderr, String stdouterr, int exitCode, CommandResult result) {
-    Assert.assertEquals(stdout, result.stdout());
-    Assert.assertEquals(stderr, result.stderr());
-    Assert.assertEquals(stdouterr, result.stdouterr());
-    Assert.assertEquals(exitCode, result.exitCode());
+    assertThat(
+        result,
+        TestUtils.allOf(
+            TestUtils.<CommandResult, String>matcherBuilder(
+                "stdout", CommandResult::stdout
+            ).check(
+                "=='" + stdout + "'", s -> s.equals(stdout)
+            ).build(),
+            TestUtils.<CommandResult, String>matcherBuilder(
+                "stderr", CommandResult::stderr
+            ).check(
+                "=='" + stderr + "'", s -> s.equals(stderr)
+            ).build(),
+            TestUtils.<CommandResult, String>matcherBuilder(
+                "stdouterr", CommandResult::stdouterr
+            ).check(
+                "=='" + stdouterr + "'", s -> s.equals(stdouterr)
+            ).build(),
+            TestUtils.<CommandResult, Integer>matcherBuilder(
+                "exitCode", CommandResult::exitCode
+            ).check(
+                "==" + exitCode, s -> s.equals(exitCode)
+            ).build()
+        ));
   }
 
   @Test(timeout = 10_000)
-  public void runLocal_echo_hello() throws Exception {
+  public void givenEchoHell$whenRun$thenHelloIsWrittenToStdout() throws Exception {
     CommandResult result = CommandUtils.runLocal("echo hello");
     assertCommandResult("hello", "", "hello", 0, result);
   }
@@ -66,7 +86,7 @@ public class CommandRunnerTest {
   public void runLocal_execFailingCommand() throws Exception {
     CommandResult result;
     // non existing file "NNN"
-    result = CommandUtils.runLocal("cat NNN");
+    result = CommandUtils.runLocal("cat NNN ; sleep 0.01; exit 1");
     assertCommandResult(
         "",
         "cat: NNN: No such file or directory",
@@ -100,7 +120,7 @@ public class CommandRunnerTest {
 
 
   @Test(timeout = 10_000)
-  public void test_08() throws Exception {
+  public void given100echoConcatenatedCommands$whenRun$then100LinesWritten() throws Exception {
     LOGGER.info("test-08");
     StringBuilder cmd = new StringBuilder();
     for (int i = 100; i > 0; i--) {
@@ -126,7 +146,7 @@ public class CommandRunnerTest {
   /**
    * This test makes sure if ring buffer is working as expected.
    */
-  @Test
+  @Test(timeout = 5_000)
   public void test_09() throws Exception {
     LOGGER.info("test-09");
     StringBuilder cmd = new StringBuilder();
@@ -262,7 +282,7 @@ public class CommandRunnerTest {
   }
 
   @Test(timeout = 5000)
-  public void test_15() throws Exception {
+  public void givenBase64ed1MB$whenRunAndRedirectToStderr$thenDataWrittenToStderr() throws Exception {
     LOGGER.info("test-15");
     String cmd = format("cat /dev/zero | head -c 100000 | %s 80 >&2", base64());
 
@@ -275,7 +295,7 @@ public class CommandRunnerTest {
     TestCase.assertEquals(0, result.exitCode());
   }
 
-  @Test(timeout = 5000)
+  @Test(timeout = 7500)
   public void runLocal_outputLargeDataToBothStdoutAndStderr_1() throws Exception {
     String cmd = format("cat /dev/zero | head -c 100000 | %s 80 >&2 && cat /dev/zero | head -c 100000 | %s 80", base64(), base64());
     String expected = buildExpectedData(80, 54);
@@ -287,7 +307,7 @@ public class CommandRunnerTest {
     TestCase.assertEquals(0, result.exitCode());
   }
 
-  @Test(timeout = 5000)
+  @Test(timeout = 7500)
   public void runLocal_outputLargeDataToBothStdoutAndStderr_2() throws Exception {
     String cmd = format("cat /dev/zero | head -c 100000 | %s 80 && cat /dev/zero | head -c 100000 | %s 80 >&2", base64(), base64());
 
@@ -300,7 +320,7 @@ public class CommandRunnerTest {
     TestCase.assertEquals(0, result.exitCode());
   }
 
-  @Test(timeout = 12000)
+  @Test(timeout = 30000)
   public void runLocal_output10MdataToStdout() throws Exception {
     LOGGER.info("test-18");
     String cmd = format("cat /dev/zero | head -c 10000000 | %s 80", base64());
@@ -352,6 +372,10 @@ public class CommandRunnerTest {
     return b.toString();
   }
 
+  /**
+   * This test requires your account is able to login localhost over SSH without
+   * any password intervention.
+   */
   @Test(timeout = 20_000)
   public void test_19() throws Exception {
     LOGGER.info("test-19");
@@ -365,6 +389,10 @@ public class CommandRunnerTest {
       CommandResult result = CommandUtils.runRemote(userName, hostName, privKey, "echo hello1");
       TestCase.assertEquals("hello1", result.stdout());
       TestCase.assertEquals("", result.stderr());
+      assertThat(result.stderr(), anyOf(
+          CoreMatchers.equalTo(""),
+          CoreMatchers.startsWith("Warning: Permanently added the RSA host key for IP address")
+      ));
       TestCase.assertEquals(0, result.exitCode());
       finished = true;
     } finally {

@@ -29,12 +29,14 @@ public interface Cmd {
     return new Builder(
     ).transformInput(
         stream -> stream
-    ).transformOutput(
-        stream -> stream
-    ).transformStderr(
+    ).consumeStdout(
+        LOGGER::info
+    ).transformStdout(
         stream -> stream
     ).consumeStderr(
         LOGGER::warn
+    ).transformStderr(
+        stream -> stream
     ).checkExitValue(
         exitValue -> exitValue == 0
     ).charset(
@@ -105,11 +107,12 @@ public interface Cmd {
   class Builder {
     private Shell                                    shell             = null;
     private Function<Stream<String>, Stream<String>> inputTransformer  = null;
-    private Function<Stream<String>, Stream<String>> outputTransformer = null;
+    private Function<Stream<String>, Stream<String>> stdoutTransformer = null;
     private IntPredicate                             exitValueChecker  = null;
     private String command;
     private Charset charset = Charset.defaultCharset();
     private Function<Stream<String>, Stream<String>> stderrTransformer;
+    private Consumer<String>                         stdoutConsumer;
     private Consumer<String>                         stderrConsumer;
 
     public Builder with(Shell shell) {
@@ -132,8 +135,8 @@ public interface Cmd {
       return this;
     }
 
-    public Builder transformOutput(Function<Stream<String>, Stream<String>> outputTransformer) {
-      this.outputTransformer = requireNonNull(outputTransformer);
+    public Builder transformStdout(Function<Stream<String>, Stream<String>> outputTransformer) {
+      this.stdoutTransformer = requireNonNull(outputTransformer);
       return this;
     }
 
@@ -142,8 +145,27 @@ public interface Cmd {
       return this;
     }
 
-    public Builder consumeStderr(Consumer<String> stderrConsumer) {
-      this.stderrConsumer = requireNonNull(stderrConsumer);
+    /**
+     * A consumer set by this method will be applied to each element in stderr stream
+     * BEFORE transformer set by {@code }transformStdout} is applied.
+     *
+     * @param consumer
+     * @return
+     */
+    public Builder consumeStdout(Consumer<String> consumer) {
+      this.stdoutConsumer = requireNonNull(consumer);
+      return this;
+    }
+
+    /**
+     * A consumer set by this method will be applied to each element in stderr stream
+     * BEFORE transformer set by {@code }transformStderr} is applied.
+     *
+     * @param consumer
+     * @return
+     */
+    public Builder consumeStderr(Consumer<String> consumer) {
+      this.stderrConsumer = requireNonNull(consumer);
       return this;
     }
 
@@ -153,32 +175,33 @@ public interface Cmd {
     }
 
     public Cmd build() {
-      return new Impl(this.shell, this.command, this.exitValueChecker, this.inputTransformer, this.outputTransformer, this.stderrTransformer, this.stderrConsumer, charset);
+      return new Impl(this.shell, this.command, this.exitValueChecker, this.inputTransformer, this.stdoutTransformer, this.stdoutConsumer, this.stderrTransformer, this.stderrConsumer, charset);
     }
   }
 
   class Impl implements Cmd {
-    private final Function<Stream<String>, Stream<String>> inputTransformer;
-    private final Function<Stream<String>, Stream<String>> outputTransformer;
-
-    private final IntPredicate                             exitValueChecker;
-    private final Charset                                  charset;
     private final Shell                                    shell;
     private final String                                   command;
+    private final Charset                                  charset;
+    private final Function<Stream<String>, Stream<String>> inputTransformer;
     private final Function<Stream<String>, Stream<String>> stderrTransformer;
     private final Consumer<String>                         stderrConsumer;
+    private final Function<Stream<String>, Stream<String>> stdoutTransformer;
+    private final Consumer<String>                         stdoutConsumer;
+    private final IntPredicate                             exitValueChecker;
     private final List<Cmd>                                downstreams;
     private       State                                    state;
     private       StreamableProcess                        process;
     private Supplier<Stream<String>> stdin = null;
 
-    private Impl(Shell shell, String command, IntPredicate exitValueChecker, Function<Stream<String>, Stream<String>> inputTransformer, Function<Stream<String>, Stream<String>> outputTransformer, Function<Stream<String>, Stream<String>> stderrTransformer, Consumer<String> stderrConsumer, Charset charset) {
+    private Impl(Shell shell, String command, IntPredicate exitValueChecker, Function<Stream<String>, Stream<String>> inputTransformer, Function<Stream<String>, Stream<String>> stdoutTransformer, Consumer<String> stdoutConsumer, Function<Stream<String>, Stream<String>> stderrTransformer, Consumer<String> stderrConsumer, Charset charset) {
       this.exitValueChecker = requireNonNull(exitValueChecker);
       this.shell = requireNonNull(shell);
       this.command = requireNonNull(command);
       this.charset = requireNonNull(charset);
       this.inputTransformer = requireNonNull(inputTransformer);
-      this.outputTransformer = requireNonNull(outputTransformer);
+      this.stdoutTransformer = requireNonNull(stdoutTransformer);
+      this.stdoutConsumer = requireNonNull(stdoutConsumer);
       this.stderrTransformer = requireNonNull(stderrTransformer);
       this.stderrConsumer = requireNonNull(stderrConsumer);
       this.downstreams = new LinkedList<>();
@@ -211,6 +234,15 @@ public interface Cmd {
       return this;
     }
 
+    /**
+     * It is not guaranteed that you get a {@code CommandExecutionException} on
+     * an operation when a command fails because internal state can be changed by
+     * independent thread and the returned stream can be closed by it. When this
+     * happens an operation on the stream will throw a {@code RuntimeException} of
+     * other types.
+     *
+     * @return A stream
+     */
     @Override
     synchronized public Stream<String> stream() {
       requireState(State.PREPARING);
@@ -404,9 +436,8 @@ public interface Cmd {
                   this.stdin.get()
           )
       ).configureStdout(
-          n -> {
-          },
-          this.outputTransformer
+          this.stdoutConsumer,
+          this.stdoutTransformer
       ).configureStderr(
           this.stderrConsumer,
           this.stderrTransformer
