@@ -12,7 +12,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.Arrays.asList;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
@@ -80,11 +79,11 @@ public class StreamableProcess extends Process {
 
   @Override
   public int waitFor() throws InterruptedException {
-    LOGGER.debug("BEGIN:waitFor:{}", this);
+    LOGGER.debug("BEGIN:{}", this);
     try {
       return process.waitFor();
     } finally {
-      LOGGER.debug("END:waitFor:{}", this);
+      LOGGER.debug("END:{}", this);
     }
   }
 
@@ -95,9 +94,9 @@ public class StreamableProcess extends Process {
 
   @Override
   public void destroy() {
-    LOGGER.debug("BEGIN:destroy:{}", this);
+    LOGGER.debug("BEGIN:{}", this);
     process.destroy();
-    LOGGER.debug("END:destroy:{}", this);
+    LOGGER.debug("END:{}", this);
   }
 
   @Override
@@ -132,16 +131,6 @@ public class StreamableProcess extends Process {
 
   public int getPid() {
     return getPid(this.process);
-  }
-
-  private void closeStreams() {
-    try {
-      this.stdin().accept(null);
-    } finally {
-      for (Stream<String> eachStream : asList(this.stdout, this.stderr)) {
-        eachStream.close();
-      }
-    }
   }
 
   private static Selector<String> createSelector(Config config, Consumer<String> stdin, Stream<String> stdout, Stream<String> stderr) {
@@ -230,9 +219,6 @@ public class StreamableProcess extends Process {
     }
 
     public static class Builder {
-      private static final Consumer<String> NOP = s -> {
-      };
-
       Stream<String>                           stdin;
       Consumer<String>                         stdoutConsumer;
       Function<Stream<String>, Stream<String>> stdoutTransformer;
@@ -241,13 +227,6 @@ public class StreamableProcess extends Process {
       Charset                                  charset;
 
       public Builder() {
-      }
-
-      public Builder init() {
-        this.charset(Charset.defaultCharset());
-        this.configureStdout(NOP, s -> s);
-        this.configureStderr(NOP, s -> s.filter(t -> false));
-        return this;
       }
 
       public Builder configureStdin(Stream<String> stdin) {

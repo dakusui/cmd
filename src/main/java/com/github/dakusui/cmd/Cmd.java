@@ -34,7 +34,7 @@ public interface Cmd {
     ).transformStderr(
         stream -> stream
     ).consumeStderr(
-        LOGGER::info
+        LOGGER::warn
     ).checkExitValue(
         exitValue -> exitValue == 0
     ).charset(
@@ -323,14 +323,14 @@ public interface Cmd {
 
 
     synchronized private void close(boolean immediate) {
-      LOGGER.debug("BEGIN:close({};immediate={})", this, immediate);
+      LOGGER.debug("BEGIN:{};immediate={}", this, immediate);
       requireState(State.RUNNING, State.CLOSED);
       boolean abort = immediate || (!this.process.isAlive() && !this.exitValueChecker.test(this.process.exitValue()));
-      LOGGER.trace("INFO:close({};abort={})", this, abort);
+      LOGGER.trace("INFO:{};abort={}", this, abort);
       if (this.state == Cmd.State.CLOSED)
         return;
       try {
-        LOGGER.trace("INFO:close({};isAlive={})", this, this.process.isAlive());
+        LOGGER.trace("INFO:{};isAlive={}", this, this.process.isAlive());
         if (abort)
           this._abort();
         int exitValue;
@@ -340,7 +340,7 @@ public interface Cmd {
         ////
         // By this point, the process should be finished.
         boolean failed = !this.exitValueChecker.test(exitValue);
-        LOGGER.trace("INFO:close({};failed={})", this, failed);
+        LOGGER.trace("INFO:{};failed={}", this, failed);
         if (abort || failed) {
           downstreams.stream(
           ).peek(each -> {
@@ -364,25 +364,25 @@ public interface Cmd {
         }
       } finally {
         this.state = Cmd.State.CLOSED;
-        LOGGER.debug("END:close({};immediate={})", this, immediate);
+        LOGGER.debug("END:{};immediate={}", this, immediate);
       }
     }
 
 
     private void _abort() {
-      LOGGER.debug("BEGIN:_abort:{}", this);
+      LOGGER.debug("BEGIN:{}", this);
       this.process.destroy();
-      LOGGER.debug("END:_abort:{}", this);
+      LOGGER.debug("END:{}", this);
     }
 
     private int _waitFor() {
-      LOGGER.debug("BEGIN:_waitFor:{}", this);
+      LOGGER.debug("BEGIN:{}", this);
       try {
         return process.waitFor();
       } catch (InterruptedException e) {
         throw Exceptions.wrap(e, (Function<Throwable, RuntimeException>) throwable -> new CommandInterruptionException());
       } finally {
-        LOGGER.debug("END:_waitFor:{}", this);
+        LOGGER.debug("END:{}", this);
       }
     }
 
@@ -423,5 +423,4 @@ public interface Cmd {
       );
     }
   }
-
 }

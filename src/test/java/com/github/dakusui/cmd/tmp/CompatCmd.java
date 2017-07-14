@@ -8,6 +8,7 @@ import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -51,7 +52,7 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
   default CompatCmd connect(Shell shell, String commandLine) {
     return connect(
         shell,
-        (Stream<String> stdin) -> new StreamableProcess.Config.Builder().init().configureStdin(stdin).build(),
+        (Stream<String> stdin) -> init(new StreamableProcess.Config.Builder()).configureStdin(stdin).build(),
         commandLine
     );
   }
@@ -129,6 +130,16 @@ public interface CompatCmd extends CmdObserver, CmdObservable {
 
   static CompatCmd.Builder local(String... commandLine) {
     return new CompatCmd.Builder().withShell(Shell.local()).addAll(asList(commandLine));
+  }
+
+  public static StreamableProcess.Config.Builder init(StreamableProcess.Config.Builder builder) {
+    final Consumer<String> nop = s -> {
+    };
+
+    builder.charset(Charset.defaultCharset());
+    builder.configureStdout(nop, s -> s);
+    builder.configureStderr(nop, s -> s.filter(t -> false));
+    return builder;
   }
 
   class Builder {
