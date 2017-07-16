@@ -13,11 +13,6 @@ public interface Selector<T> {
   Stream<T> stream();
 
 
-  static <T> Consumer<T> nop() {
-    return e -> {
-    };
-  }
-
   static <T> Stream<T> select(Stream<T>... streams) {
     return select(Arrays.asList(streams));
   }
@@ -27,7 +22,7 @@ public interface Selector<T> {
    */
   static <T> Stream<T> select(List<Stream<T>> streams) {
     return new Selector.Builder<T>() {{
-      streams.forEach(each -> add(each, nop(), true));
+      streams.forEach(each -> add(each, IoUtils.nop(), true));
     }}.build().stream();
   }
 

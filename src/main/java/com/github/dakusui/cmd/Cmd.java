@@ -8,7 +8,6 @@ import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -19,6 +18,7 @@ import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.core.IoUtils.nop;
 import static java.util.Objects.requireNonNull;
 
 public interface Cmd {
@@ -30,7 +30,7 @@ public interface Cmd {
     ).transformInput(
         stream -> stream
     ).consumeStdout(
-        LOGGER::info
+        nop()
     ).transformStdout(
         stream -> stream
     ).consumeStderr(
@@ -264,10 +264,8 @@ public interface Cmd {
       ).peek(
           o -> {
             if (!process.isAlive())
-              if (exitValueChecker.test(process.exitValue()))
-                close();
-              else {
-                abort();
+              if (!exitValueChecker.test(process.exitValue())) {
+                System.out.println("!!!!");
                 throw new UnexpectedExitValueException(
                     this.process.exitValue(),
                     this.toString(),
@@ -296,15 +294,15 @@ public interface Cmd {
             ).peek(
                 (String s) -> {
                   if (s == null) {
-                    downstreams.stream().map(each -> each.stdin()).filter(i -> i instanceof Consumer).map(i -> Consumer.class.cast(i)).forEach(c -> c.accept(null));
+                    downstreams.stream().map(Cmd::stdin).filter(i -> i instanceof Consumer).map(Consumer.class::cast).forEach(c -> c.accept(null));
                     process.stdin().accept(null);
                   }
                 }
             ),
-            Selector.nop(),
+            nop(),
             false
         );
-        downstreams.forEach(each -> builder.add(each.stream(), Selector.nop(), true));
+        downstreams.forEach(each -> builder.add(each.stream(), nop(), true));
         ret = builder.build().stream();
       }
       return ret.peek(
@@ -348,9 +346,9 @@ public interface Cmd {
       return String.format("%s '%s'", this.shell, this.command);
     }
 
-    public void dump(PrintStream out) {
+    public void dump() {
       LOGGER.debug("{}.alive={}", this, this.process.isAlive());
-      downstreams.forEach((Cmd cmd) -> ((Cmd.Impl) cmd).dump(out));
+      downstreams.forEach((Cmd cmd) -> ((Cmd.Impl) cmd).dump());
     }
 
 
@@ -366,9 +364,13 @@ public interface Cmd {
         if (abort)
           this._abort();
         int exitValue;
-        do {
-          exitValue = this._waitFor();
-        } while (this.process.isAlive());
+        if (this.process.isAlive())
+          do {
+            exitValue = this._waitFor();
+          } while (this.process.isAlive());
+        else
+          exitValue = this.process.exitValue();
+
         ////
         // By this point, the process should be finished.
         boolean failed = !this.exitValueChecker.test(exitValue);

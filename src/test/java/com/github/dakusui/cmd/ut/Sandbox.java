@@ -307,7 +307,7 @@ public class Sandbox {
     );
   }
 
-  @Test(timeout = 3_000, expected = RuntimeException.class)
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
   public void failingStreamExample1() {
     cmd(
         "unknownCommand hello"
@@ -375,7 +375,7 @@ public class Sandbox {
           ),
           2_000
       )) {
-        ((Cmd.Impl) cmd).dump(System.out);
+        ((Cmd.Impl) cmd).dump();
         throw new RuntimeException();
       }
     }

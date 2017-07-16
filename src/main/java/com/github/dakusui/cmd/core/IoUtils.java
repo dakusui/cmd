@@ -50,6 +50,11 @@ public enum IoUtils {
     );
   }
 
+  public static <T> Consumer<T> nop() {
+    return e -> {
+    };
+  }
+
   private enum IteratorState {
     READ,
     NOT_READ,
@@ -98,7 +103,7 @@ public enum IoUtils {
         try {
           return reader.readLine();
         } catch (IOException e) {
-          throw Exceptions.wrap(e);
+          return null;
         }
       }
     };
