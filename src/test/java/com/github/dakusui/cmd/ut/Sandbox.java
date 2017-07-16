@@ -4,7 +4,6 @@ import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.utils.TestUtils;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -358,7 +357,6 @@ public class Sandbox {
     System.out.println(format("Shouldn't be executed.(tid=%d)", Thread.currentThread().getId()));
   }
 
-  @Ignore
   @Test
   public void failingStreamExample2b() {
     for (int i = 0; i < 100; i++) {

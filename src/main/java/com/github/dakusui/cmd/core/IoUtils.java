@@ -6,6 +6,7 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -47,20 +48,27 @@ public enum IoUtils {
     return StreamSupport.stream(
         ((Iterable<String>) () -> toIterator(is, charset)).spliterator(),
         false
+    ).filter(
+        Objects::nonNull
     );
   }
 
+  /**
+   * Returns a consumer that does nothing.
+   */
   public static <T> Consumer<T> nop() {
     return e -> {
     };
   }
 
-  private enum IteratorState {
-    READ,
-    NOT_READ,
-    END
-  }
-
+  /**
+   * An iterator returned by this method may return {@code null}, in case {@code next}
+   * method is called after the input stream {@code is} is closed.
+   *
+   * @param is An input stream from which returned iterator is created.
+   * @param charset Charset used to decode data from {@code is}
+   * @return An iterator that returns strings created from {@code id}
+   */
   public static Iterator<String> toIterator(InputStream is, Charset charset) {
     return new Iterator<String>() {
       BufferedReader reader = new BufferedReader(
@@ -107,5 +115,11 @@ public enum IoUtils {
         }
       }
     };
+  }
+
+  private enum IteratorState {
+    READ,
+    NOT_READ,
+    END
   }
 }
