@@ -405,6 +405,12 @@ public interface Cmd {
 
     private void _abort() {
       LOGGER.debug("BEGIN:{}", this);
+      try {
+        // TODO
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
       this.process.destroy();
       LOGGER.debug("END:{}", this);
     }

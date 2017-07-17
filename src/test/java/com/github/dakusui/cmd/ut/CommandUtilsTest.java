@@ -82,18 +82,26 @@ public class CommandUtilsTest {
     assertCommandResult("hello", "", "hello", 0, result);
   }
 
+  /*
+   * Flaky
+   */
   @Test(timeout = 10_000)
   public void runLocal_execFailingCommand() throws Exception {
     CommandResult result;
     // non existing file "NNN"
-    result = CommandUtils.runLocal("cat NNN ; sleep 0.01; exit 1");
-    assertCommandResult(
-        "",
-        "cat: NNN: No such file or directory",
-        "cat: NNN: No such file or directory",
-        1,
-        result
-    );
+    try {
+      result = CommandUtils.runLocal("cat NNN");
+      assertCommandResult(
+          "",
+          "cat: NNN: No such file or directory",
+          "cat: NNN: No such file or directory",
+          1,
+          result
+      );
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw e;
+    }
   }
 
   @Test(timeout = 10_000)
@@ -295,6 +303,9 @@ public class CommandUtilsTest {
     TestCase.assertEquals(0, result.exitCode());
   }
 
+  /*
+   * Flaky
+   */
   @Test(timeout = 7500)
   public void runLocal_outputLargeDataToBothStdoutAndStderr_1() throws Exception {
     String cmd = format("cat /dev/zero | head -c 100000 | %s 80 >&2 && cat /dev/zero | head -c 100000 | %s 80", base64(), base64());

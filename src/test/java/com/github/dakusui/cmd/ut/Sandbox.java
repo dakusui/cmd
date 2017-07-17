@@ -339,9 +339,6 @@ public class Sandbox {
     );
   }
 
-  /*
-   * Flaky
-   */
   @Test(timeout = 5_000, expected = RuntimeException.class)
   public void failingStreamExample2() {
     cmd(

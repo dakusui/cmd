@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd;
 
+import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.exceptions.CommandException;
 import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
@@ -29,8 +30,8 @@ public enum CommandUtils {
     return run(
         timeOut,
         new Shell.Builder.ForLocal()
-            .withProgram(execShell[0])
             .clearOptions()
+            .withProgram(execShell[0])
             .addAllOptions(asList(execShell).subList(1, execShell.length))
             .build(),
         command
@@ -66,8 +67,7 @@ public enum CommandUtils {
 
     final Callable<CommandResult> callable = () -> {
       try {
-        cmd.stream().forEach(s -> {
-        });
+        cmd.stream().forEach(IoUtils.nop());
         Integer exitValue;
         synchronized (exitValueHolder) {
           while ((exitValue = exitValueHolder.get()) == null) {
