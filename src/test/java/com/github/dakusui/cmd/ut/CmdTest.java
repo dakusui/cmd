@@ -1,138 +1,491 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.StreamableProcess;
-import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
-import com.github.dakusui.cmd.tmp.CompatCmd;
+import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.utils.TestUtils;
-import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.Cmd.cmd;
+import static com.github.dakusui.cmd.utils.TestUtils.allOf;
+import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
+import static java.lang.String.format;
+import static org.junit.Assert.*;
+
 public class CmdTest extends TestUtils.TestBase {
-  //  private StreamableProcess.Config defaultConfig = createConfig(Stream.empty());
-/*
-  private StreamableProcess.Config createConfig(Stream<String> stdin) {
-    return new StreamableProcess.Config.Builder().configureStdin(Stream.empty())
-        .configureStdin(stdin)
-        .configureStdout(s -> System.out.println(new Date() + ":" + s))
-        .configureStderr(s -> System.err.println(new Date() + ":" + s))
-        .build();
-  }
-  */
+  private List<String> out = Collections.synchronizedList(new LinkedList<>());
 
-  @Before
-  public void before() throws InterruptedException {
-    Thread.sleep(500);
+  @Test(timeout = 3_000)
+  public void streamExamplea() {
+    Cmd cmd = cmd(
+        "cat -n"
+    );
+    ((StreamableQueue<String>) cmd.stdin()).accept("Hello");
+    ((StreamableQueue<String>) cmd.stdin()).accept("World");
+    ((StreamableQueue<String>) cmd.stdin()).accept(null);
+
+    cmd.stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==2", size -> size == 2
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "==contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "==contains'2\tHello'", s -> s.contains("2\tWorld")
+            ).build()
+        )
+    );
   }
 
-  @Test(timeout = 10_000)
-  public void simplyEchoHello() {
-    CompatCmd.stream(Shell.local(), "echo hello").forEach(System.out::println);
+  @Test(timeout = 3_000)
+  public void streamExample0() {
+    cmd(
+        "echo hello"
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==1", size -> size == 1
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='hello'", "hello"::equals
+            ).build()
+        )
+    );
   }
 
-  @Test(expected = UnexpectedExitValueException.class)
-  public void givenCommandExitWith1$whenRunLocally$thenCommandExecutionExceptionThrown() {
-    CompatCmd.stream(Shell.local(), "echo hello && exit 1").forEach(System.out::println);
+  @Test(timeout = 3_000)
+  public void streamExample1() {
+    cmd(
+        "echo hello"
+    ).readFrom(
+        Stream::empty
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==1", size -> size == 1
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='hello'", "hello"::equals
+            ).build()
+        )
+    );
   }
 
-  @Test(expected = UnexpectedExitValueException.class)
-  public void givenCommandExitWith$whenRunItLocallyTwice$thenCommandExecutionExceptionThrown() {
-    String command = "echo hello && exit 1";
-    CompatCmd.stream(Shell.local(), StreamableProcess.Config.builder(Stream.empty()).build(), command).forEach(System.out::println);
-    CompatCmd.stream(Shell.local(), command).forEach(System.out::println);
+  @Test(timeout = 3_000)
+  public void given100ConcatenatedEchoCommands$whenRun$thenNotBlockedAnd100LinesWritten() {
+    cmd(
+        IntStream.range(0, 100).mapToObj(i -> String.format("echo %d", i)).collect(Collectors.joining(" && "))
+    ).readFrom(
+        Stream::empty
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==100", size -> size == 100
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='0'", "0"::equals
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt99", o -> o.get(99)
+            ).check(
+                "=='99'", "99"::equals
+            ).build()
+        )
+    );
   }
 
-  /*
-  @Test(expected = UnexpectedExitValueException.class)
-  public void givenPipedCommandThatShouldFail$whenRunLocally$thenThrowsException() throws IOException {
-    try {
-      new CompatCmd.Builder()
-          .withShell(new Shell.Builder.ForLocal().build())
-          .add("echo $(which echo) && echo \"hello\" && cat hello")
-          .configure(defaultConfig)
-          .build()
-          .stream()
-          .forEach(System.out::println);
-    } catch (UnexpectedExitValueException e) {
-      System.err.println(e.exitValue());
-      System.err.println(String.join(":", e.commandLine()));
-      throw e;
+  @Test(timeout = 3_000)
+  public void streamExample2() {
+    cmd(
+        "cat -n"
+    ).readFrom(
+        () -> Stream.of("Hello", "world")
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==2", size -> size == 2
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 3_000)
+  public void streamExample3() {
+    cmd(
+        "echo Hello && echo world"
+    ).readFrom(
+        Stream::empty
+    ).pipeTo(cmd(
+        "cat -n"
+    )).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out,
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==2", size -> size == 2
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build()
+        )
+    );
+
+  }
+
+  @Test(timeout = 3_000)
+  public void streamExample4() {
+    cmd(
+        "echo Hello && echo world"
+    ).readFrom(
+        Stream::empty
+    ).pipeTo(
+        cmd(
+            "cat -n"
+        ),
+        cmd(
+            "cat -n"
+        )
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out.stream().sorted().collect(Collectors.toList()),
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==4", size -> size == 4
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt2", o -> o.get(2)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt3", o -> o.get(3)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 5_000)
+  public void streamExample5() {
+    cmd(
+        "echo world && echo Hello"
+    ).pipeTo(
+        cmd(
+            "sort"
+        ).pipeTo(cmd(
+            "cat -n"
+        ))
+    ).readFrom(
+        Stream::empty
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out.stream().sorted().collect(Collectors.toList()),
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==2", size -> size == 2
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 5_000)
+  public void streamExample6() {
+    cmd(
+        "echo world && echo Hello"
+    ).readFrom(
+        Stream::empty
+    ).pipeTo(
+        cmd(
+            "cat"
+        ),
+        cmd(
+            "sort"
+        ).pipeTo(cmd(
+            "cat -n"
+        ))
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out.stream().sorted().collect(Collectors.toList()),
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==4", size -> size == 4
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt2", o -> o.get(2)
+            ).check(
+                "contains'Hello'", s -> s.contains("Hello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt3", o -> o.get(3)
+            ).check(
+                "contains'world'", s -> s.contains("world")
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  public void failingStreamExample1() {
+    cmd(
+        "unknownCommand hello"
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out.stream().sorted().collect(Collectors.toList()),
+        allOf(
+            matcherBuilder(
+                "size", (Function<List<String>, Integer>) List::size
+            ).check(
+                "==2", size -> size == 2
+            ).build(),
+            matcherBuilder(
+                "elementAt0", (List<String> o) -> o.get(0)
+            ).check(
+                "contains'1\tHello'", s -> s.contains("1\tHello")
+            ).build(),
+            matcherBuilder(
+                "elementAt1", (List<String> o) -> o.get(1)
+            ).check(
+                "contains'2\tworld'", s -> s.contains("2\tworld")
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 5_000, expected = RuntimeException.class)
+  public void failingStreamExample2() {
+    cmd(
+        "unknownCommand hello"
+    ).pipeTo(
+        cmd("cat -n")
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+    System.out.println(format("Shouldn't be executed.(tid=%d)", Thread.currentThread().getId()));
+  }
+
+  @Test
+  public void failingStreamExample2b() {
+    for (int i = 0; i < 100; i++) {
+      System.out.println("=== " + i + " ===");
+      Cmd cmd = cmd(
+          "unknownCommand hello"
+      ).pipeTo(
+          cmd("cat -n")
+      );
+      if (!TestUtils.terminatesIn(
+          () -> cmd.stream(
+          ).forEach(
+              System.out::println
+          ),
+          2_000
+      )) {
+        ((Cmd.Impl) cmd).dump();
+        throw new RuntimeException();
+      }
     }
   }
-  */
 
-  /*
-  @Test(timeout = 15_000)
-  public void givenEchoHello$whenRunOverSshOnLocalhost$thenFinishesWithoutError() throws IOException {
-    try {
-      new CompatCmd.Builder()
-          .withShell(
-              new Shell.Builder.ForSsh("localhost")
-                  .userName(TestUtils.userName())
-                  .identity(TestUtils.identity())
-                  .build()
-          )
-          .add("echo")
-          .add("hello")
-          .configure(defaultConfig)
-          .build()
-          .stream()
-          .forEach(System.out::println);
-    } catch (UnexpectedExitValueException e) {
-      System.err.println("exitcode:" + e.exitValue());
-      System.err.println("commandline:" + String.join(" ", e.commandLine()));
-      throw e;
-    }
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  public void failingStreamExample3() {
+    cmd(
+        "echo hello"
+    ).pipeTo(
+        cmd("unknownCommand -n")
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
   }
-  */
 
-  /*
-
-  @Test(timeout = 15_000)
-  public void given_hello_world_everyone$whenPipedToCat$thenPassedToDownstream() throws IOException {
-    try {
-      List<String> out = new LinkedList<>();
-      new CompatCmd.Builder()
-          .withShell(new Shell.Builder.ForLocal().build())
-          .configure(createConfig(Stream.of("hello", "world", "everyone")))
-          .add("cat -n")
-          .build()
-          .stream()
-          .forEach(out::add);
-      assertThat(out,
-          allOf(
-              TestUtils.<List<String>, Integer>matcherBuilder().transform("size", List::size).check("==3", i -> i.equals(3)).build(),
-              TestUtils.<List<String>, String>matcherBuilder().transform("[0]", i -> i.get(0)).check("endsWith('hello')", v -> v.endsWith("hello")).build(),
-              TestUtils.<List<String>, String>matcherBuilder().transform("[1]", i -> i.get(1)).check("endsWith('world')", v -> v.endsWith("world")).build(),
-              TestUtils.<List<String>, String>matcherBuilder().transform("[2]", i -> i.get(2)).check("endsWith('everyone')", v -> v.endsWith("everyone")).build()
-          ));
-    } catch (UnexpectedExitValueException e) {
-      System.err.println(e.exitValue());
-      System.err.println(String.join(":", e.commandLine()));
-      throw e;
-    }
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  public void failingStreamExample4() {
+    cmd(
+        "echo hello"
+    ).pipeTo(
+        cmd("cat -n"),
+        cmd("unknownCommand -n")
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
   }
-  */
-  /*
 
-  @Test(timeout = 15_000)
-  public void givenPipedCommandThatHandles10KB$whenRunWithCustomInput$thenFinishes() throws IOException {
-    try {
-      CompatCmd cmd = new CompatCmd.Builder()
-          .withShell(new Shell.Builder.ForLocal().withProgram("sh").clearOptions().addOption("-c").build())
-          .add(String.format("cat /dev/zero | head -c 100000 | %s 80", TestUtils.base64()))
-          .configure(createConfig(Stream.of("Hello", "world")))
-          .build();
-      System.out.println("commandLine=" + cmd);
-      cmd.stream()
-          .forEach(System.out::println);
-    } catch (UnexpectedExitValueException e) {
-      System.err.println(e.exitValue());
-      System.err.println(String.join(":", e.commandLine()));
-      throw e;
-    }
+  @Test(timeout = 3_000, expected = CommandExecutionException.class)
+  public void failingStreamExample5() {
+    cmd(
+        "echo hello"
+    ).pipeTo(
+        cmd("unknownCommand -n").pipeTo(
+            cmd("cat -n")
+        )
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
   }
-*/
+
 }

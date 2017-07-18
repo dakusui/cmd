@@ -1,7 +1,5 @@
 package com.github.dakusui.cmd;
 
-import com.github.dakusui.cmd.scenario.PipelineTest;
-import com.github.dakusui.cmd.scenario.ScenarioTest;
 import com.github.dakusui.cmd.ut.*;
 import com.github.dakusui.cmd.ut.io.LineReaderTest;
 import com.github.dakusui.cmd.ut.io.RingBufferedLineWriterTest;
@@ -10,17 +8,15 @@ import org.junit.runners.Suite;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
-    CmdTest.class,
-    PipelineTest.class,
-    CmdTeeTest.class,
     CmdStateTest.class,
-    SelectorTest.class,
-    ScenarioTest.class,
-    TeeTest.class,
-    LineReaderTest.class,
-    RingBufferedLineWriterTest.class,
+    CmdTest.class,
     CommandUtilsTest.class,
-    TeeTimeoutTest.class
+    SelectorTest.class,
+    StreamableQueueTest.class,
+    TeeTest.class,
+    TeeTimeoutTest.class,
+    RingBufferedLineWriterTest.class,
+    LineReaderTest.class,
 })
 public class All {
 }

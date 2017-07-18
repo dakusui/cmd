@@ -1,134 +1,104 @@
 package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.CommandResult;
-import com.github.dakusui.cmd.CommandUtils;
 import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
 import com.github.dakusui.cmd.utils.TestUtils;
 import junit.framework.TestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static com.github.dakusui.cmd.utils.TestUtils.base64;
+import static com.github.dakusui.cmd.CommandUtils.runLocal;
+import static com.github.dakusui.cmd.CommandUtils.runRemote;
+import static com.github.dakusui.cmd.utils.TestUtils.*;
 import static java.lang.String.format;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.junit.Assert.assertThat;
 
 public class CommandUtilsTest {
-  /**
-   * A dummy logger class for compatibility
-   */
-  static class DummyLogger {
-    void info(String message, Object... args) {
-    }
-
-    void debug(String message, Object... args) {
-    }
-
-    void error(String message, Object... args) {
-    }
-  }
-
-  private static DummyLogger LOGGER = new DummyLogger() {
-  };
-
-  private void assertCommandResult(String stdout, String stderr, String stdouterr, int exitCode, CommandResult result) {
-    assertThat(
-        result,
-        TestUtils.allOf(
-            TestUtils.<CommandResult, String>matcherBuilder(
-                "stdout", CommandResult::stdout
-            ).check(
-                "=='" + stdout + "'", s -> s.equals(stdout)
-            ).build(),
-            TestUtils.<CommandResult, String>matcherBuilder(
-                "stderr", CommandResult::stderr
-            ).check(
-                "=='" + stderr + "'", s -> s.equals(stderr)
-            ).build(),
-            TestUtils.<CommandResult, String>matcherBuilder(
-                "stdouterr", CommandResult::stdouterr
-            ).check(
-                "=='" + stdouterr + "'", s -> s.equals(stdouterr)
-            ).build(),
-            TestUtils.<CommandResult, Integer>matcherBuilder(
-                "exitCode", CommandResult::exitCode
-            ).check(
-                "==" + exitCode, s -> s.equals(exitCode)
-            ).build()
-        ));
-  }
+  private static Logger LOGGER = LoggerFactory.getLogger(CommandUtilsTest.class);
 
   @Test(timeout = 10_000)
   public void givenEchoHell$whenRun$thenHelloIsWrittenToStdout() throws Exception {
-    CommandResult result = CommandUtils.runLocal("echo hello");
-    assertCommandResult("hello", "", "hello", 0, result);
+    assertCommandResult(
+        runLocal("echo hello"), "hello",
+        "",
+        "hello",
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void runLocal_echo_hello_$$_echo_hello() throws Exception {
-    CommandResult result = CommandUtils.runLocal("echo hello && echo hello");
-    assertCommandResult("hello\nhello", "", "hello\nhello", 0, result);
+  public void given2connectedEchoCommands$runLocally$thenOutputIsCorrect() throws Exception {
+    assertCommandResult(
+        runLocal("echo hello && echo hello"),
+        "hello\nhello",
+        "",
+        "hello\nhello",
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void runLocal_echo_hello_twice() throws Exception {
-    CommandResult result;
+  public void givenEchoCommand$runTwiceLocally$thenTheyDoNotBlockAndEachOutputIsCorrect() throws Exception {
     LOGGER.info("stage - 1");
-    result = CommandUtils.runLocal("echo hello");
-    assertCommandResult("hello", "", "hello", 0, result);
+    assertCommandResult(
+        runLocal("echo hello"),
+        "hello",
+        "",
+        "hello",
+        0
+    );
     LOGGER.info("stage - 2");
-    result = CommandUtils.runLocal("echo hello");
-    assertCommandResult("hello", "", "hello", 0, result);
-  }
-
-  /*
-   * Flaky
-   */
-  @Test(timeout = 10_000)
-  public void runLocal_execFailingCommand() throws Exception {
-    CommandResult result;
-    // non existing file "NNN"
-    try {
-      result = CommandUtils.runLocal("cat NNN");
-      assertCommandResult(
-          "",
-          "cat: NNN: No such file or directory",
-          "cat: NNN: No such file or directory",
-          1,
-          result
-      );
-    } catch (Exception e) {
-      e.printStackTrace();
-      throw e;
-    }
+    assertCommandResult(
+        runLocal("echo hello"),
+        "hello",
+        "",
+        "hello",
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void runLocal_echo_WORLD_tostderr() throws Exception {
-    CommandResult result;
+  public void givenFailingCommand$whenRunLocally$thenStderrIsWrittenToCommandResult() throws Exception {
+    assertCommandResult(
+        runLocal("cat NNN"), "",
+        "cat: NNN: No such file or directory",
+        "cat: NNN: No such file or directory",
+        1
+        // non existing file "NNN"
+    );
+  }
+
+  @Test(timeout = 10_000)
+  public void givenEchoCommandRedirectingStdoutToStderr$runLocally$thenStdErrIsWrittenToCommandResult() throws Exception {
     LOGGER.info("test_03");
-    result = CommandUtils.runLocal("echo WORLD >&2");
-    assertCommandResult("", "WORLD", "WORLD", 0, result);
-  }
-
-  @Test(expected = CommandTimeoutException.class)
-  public void runLocal_with_1000msec_timesout_expectedly() throws Exception {
-    LOGGER.info("test-06");
-    CommandResult result = CommandUtils.runLocal(1000, "sleep 10");
-    LOGGER.debug("result={}", result);
+    assertCommandResult(
+        runLocal("echo WORLD >&2"), "",
+        "WORLD",
+        "WORLD",
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void runLocal_sleep1_$$_echo_hi_MakeSureLongCommandWorksCorrectly() throws Exception {
+  public void givenEchoCommandAfter1secSleep$whenRunLocally$thenOutputIsCorrect() throws Exception {
     LOGGER.info("test-07");
-    CommandResult result = CommandUtils.runLocal("sleep 1 && echo hi");
-    assertCommandResult("hi", "", "hi", 0, result);
+
+    assertCommandResult(
+        runLocal("sleep 1 && echo hi"),
+        "hi",
+        "",
+        "hi",
+        0
+    );
   }
 
 
   @Test(timeout = 10_000)
-  public void given100echoConcatenatedCommands$whenRun$then100LinesWritten() throws Exception {
+  public void given100echoConcatenatedCommands$whenRun$then100LinesWrittenCorrectly() throws Exception {
     LOGGER.info("test-08");
     StringBuilder cmd = new StringBuilder();
     for (int i = 100; i > 0; i--) {
@@ -145,17 +115,21 @@ public class CommandUtilsTest {
         expected.append(System.getProperty("line.separator"));
       }
     }
-    CommandResult result = CommandUtils.runLocal(cmd.toString());
-    TestCase.assertEquals(expected.toString(), result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+
+    assertCommandResult(
+        runLocal(cmd.toString()),
+        expected.toString(),
+        "",
+        expected.toString(),
+        0
+    );
   }
 
   /**
    * This test makes sure if ring buffer is working as expected.
    */
   @Test(timeout = 5_000)
-  public void test_09() throws Exception {
+  public void given101echoConcatenatedCommands$whenRun$then100LinesWrittenCorrectly() throws Exception {
     LOGGER.info("test-09");
     StringBuilder cmd = new StringBuilder();
     for (int i = 101; i > 0; i--) {
@@ -173,14 +147,17 @@ public class CommandUtilsTest {
       }
     }
 
-    CommandResult result = CommandUtils.runLocal(cmd.toString());
-    TestCase.assertEquals(expected.toString(), result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+    assertCommandResult(
+        runLocal(cmd.toString()),
+        expected.toString(),
+        "",
+        expected.toString(),
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void test_10() throws Exception {
+  public void given99echoConcatenatedCommands$whenRun$then99LinesWrittenCorrectly() throws Exception {
     LOGGER.info("test-10");
     StringBuilder cmd = new StringBuilder();
     for (int i = 99; i > 0; i--) {
@@ -198,14 +175,17 @@ public class CommandUtilsTest {
       }
     }
 
-    CommandResult result = CommandUtils.runLocal(cmd.toString());
-    TestCase.assertEquals(expected.toString(), result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+    assertCommandResult(
+        runLocal(cmd.toString()),
+        expected.toString(),
+        "",
+        expected.toString(),
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void test_11() throws Exception {
+  public void given200echoConcatenatedCommands$whenRun$then100LinesWrittenCorrectly() throws Exception {
     LOGGER.info("test-11");
     StringBuilder cmd = new StringBuilder();
     for (int i = 200; i > 0; i--) {
@@ -222,14 +202,18 @@ public class CommandUtilsTest {
         expected.append(System.getProperty("line.separator"));
       }
     }
-    CommandResult result = CommandUtils.runLocal(cmd.toString());
-    TestCase.assertEquals(expected.toString(), result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+
+    assertCommandResult(
+        runLocal(cmd.toString()),
+        expected.toString(),
+        "",
+        expected.toString(),
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void test_12() throws Exception {
+  public void given201echoConcatenatedCommands$whenRun$then100LinesWrittenCorrectly() throws Exception {
     LOGGER.info("test-12");
     StringBuilder cmd = new StringBuilder();
     for (int i = 201; i > 0; i--) {
@@ -247,102 +231,129 @@ public class CommandUtilsTest {
       }
     }
 
-    CommandResult result = CommandUtils.runLocal(cmd.toString());
-    TestCase.assertEquals(expected.toString(), result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+    assertCommandResult(
+        runLocal(cmd.toString()),
+        expected.toString(),
+        "",
+        expected.toString(),
+        0
+    );
   }
 
   @Test(timeout = 10_000)
-  public void test_13() throws Exception {
+  public void givenCommandWrites10KdataEncodedByBase64$whenRunLocally$thenOutisWrittenToStdoutCorrectly() throws Exception {
     LOGGER.info("test-13");
     String cmd = format("cat /dev/zero | head -c 10000 | %s 80", base64());
 
-    String expected = buildExpectedData(80, 54);
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
     // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     // 123456789012345678901234567890123456789012345678901234
-    CommandResult result = CommandUtils.runLocal(cmd);
-    TestCase.assertEquals(expected, result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
-  }
-
-  @Test(timeout = 5000)
-  public void test_14() throws Exception {
-    LOGGER.info("test-14");
-    String cmd = format("cat /dev/zero | head -c 100000 | %s 80", base64());
-
-    String expected = buildExpectedData(80, 54);
-    CommandResult result = CommandUtils.runLocal(cmd);
-    // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-    // 123456789012345678901234567890123456789012345678901234
-    TestCase.assertEquals(expected, result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
-  }
-
-  @Test
-  public void test_14_1() throws Exception {
-    assertThat(
-        CommandUtils.runLocal("echo hello | cat -n").stdout(),
-        CoreMatchers.containsString("1\thello")
+    assertCommandResult(
+        runLocal(cmd),
+        expected,
+        "",
+        expected,
+        0
     );
   }
 
   @Test(timeout = 5000)
-  public void givenBase64ed1MB$whenRunAndRedirectToStderr$thenDataWrittenToStderr() throws Exception {
-    LOGGER.info("test-15");
-    String cmd = format("cat /dev/zero | head -c 100000 | %s 80 >&2", base64());
+  public void givenCommandWrites100KdataEncodedByBase64$whenRunLocally$thenOutisWrittenToStdoutCorrectly() throws Exception {
+    LOGGER.info("test-14");
+    String cmd = format("cat /dev/zero | head -c 100000 | %s 80", base64());
 
-    String expected = buildExpectedData(80, 54);
-    CommandResult result = CommandUtils.runLocal(cmd);
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
     // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     // 123456789012345678901234567890123456789012345678901234
-    TestCase.assertEquals("", result.stdout());
-    TestCase.assertEquals(expected, result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+    assertCommandResult(
+        runLocal(cmd),
+        expected,
+        "",
+        expected,
+        0
+    );
   }
 
-  /*
-   * Flaky
+  @Test
+  public void givenEchoPipedWithCatN$whenLocally$thenLineNumberedDataWrittenToStdout() throws Exception {
+    assertThat(
+        runLocal("echo hello | cat -n").stdout(),
+        CoreMatchers.containsString("1\thello")
+    );
+  }
+
+  /**
+   * TODO: Flaky 7/18/2017
+   * @throws Exception
    */
-  @Test(timeout = 7500)
-  public void runLocal_outputLargeDataToBothStdoutAndStderr_1() throws Exception {
-    String cmd = format("cat /dev/zero | head -c 100000 | %s 80 >&2 && cat /dev/zero | head -c 100000 | %s 80", base64(), base64());
-    String expected = buildExpectedData(80, 54);
-    CommandResult result = CommandUtils.runLocal(cmd);
+  @Test(timeout = 10000)
+  public void givenBase64ed1MBRedirectingStdoutToStderr$whenRunLocally$thenDataWrittenToStderr() throws Exception {
+    LOGGER.info("test-15");
+    String cmd = format("cat /dev/zero | head -c 1000000 | %s 80 >&2", base64());
+
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
     // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     // 123456789012345678901234567890123456789012345678901234
-    TestCase.assertEquals(expected, result.stdout());
-    TestCase.assertEquals(expected, result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+
+    assertCommandResult(
+        runLocal(cmd),
+        "",
+        expected,
+        expected,
+        0
+    );
   }
 
-  @Test(timeout = 7500)
-  public void runLocal_outputLargeDataToBothStdoutAndStderr_2() throws Exception {
+  @Test(timeout = 10000)
+  public void givenCommandsWritingLargeDataBothToStderrAndStdout$whenRunLocally$thenDataWrittenBothToStderrAndStdout() throws Exception {
+    String cmd = format("cat /dev/zero | head -c 100000 | %s 80 >&2 && cat /dev/zero | head -c 100000 | %s 80", base64(), base64());
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
+    // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    // 123456789012345678901234567890123456789012345678901234
+    assertCommandResult(
+        runLocal(cmd),
+        expected,
+        expected,
+        null,
+        0
+    );
+  }
+
+  /**
+   * TODO: Flaky 7/18/2017
+   */
+  @Test(timeout = 10000)
+  public void givenCommandsWritingLargeDataBothToStdoutAndStderr$whenRunLocally$thenDataWrittenBothToStdoutAndStderr() throws Exception {
     String cmd = format("cat /dev/zero | head -c 100000 | %s 80 && cat /dev/zero | head -c 100000 | %s 80 >&2", base64(), base64());
 
-    String expected = buildExpectedData(80, 54);
-    CommandResult result = CommandUtils.runLocal(cmd);
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
     // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     // 123456789012345678901234567890123456789012345678901234
-    TestCase.assertEquals(expected, result.stdout());
-    TestCase.assertEquals(expected, result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+
+    assertCommandResult(
+        runLocal(cmd),
+        expected,
+        expected,
+        null,
+        0
+    );
   }
 
   @Test(timeout = 30000)
-  public void runLocal_output10MdataToStdout() throws Exception {
+  public void givenCommandWriting10MdataToStdout$whenRunLocally$thenDataWrittenToStdout() throws Exception {
     LOGGER.info("test-18");
     String cmd = format("cat /dev/zero | head -c 10000000 | %s 80", base64());
 
-    String expected = buildExpectedData(80, 54);
-    CommandResult result = CommandUtils.runLocal(cmd);
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
     // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     // 123456789012345678901234567890123456789012345678901234
-    TestCase.assertEquals(expected, result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+    assertCommandResult(
+        runLocal(cmd),
+        expected,
+        "",
+        expected,
+        0
+    );
   }
 
 
@@ -351,20 +362,148 @@ public class CommandUtilsTest {
    */
   @Ignore
   @Test(timeout = 60000)
-  public void runLocal_output100MdataToStdout() throws Exception {
+  public void givenCommandWriting100MdataToStdout$whenRunLocally$thenDataWrittenToStdout() throws Exception {
     LOGGER.info("test-18");
     String cmd = format("cat /dev/zero | head -c 100000000 | %s 80", base64());
 
-    String expected = buildExpectedData(80, 54);
-    CommandResult result = CommandUtils.runLocal(cmd);
+    String expected = buildExpectedOutputFromDevZeroEncodedByBase64(80, 54);
     // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
     // 123456789012345678901234567890123456789012345678901234
-    TestCase.assertEquals(expected, result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
+    assertCommandResult(
+        runLocal(cmd),
+        expected,
+        "",
+        expected,
+        0
+    );
   }
 
-  private String buildExpectedData(@SuppressWarnings("SameParameterValue") int numCharsPerOneLine, @SuppressWarnings("SameParameterValue") int numCharsInLastLine) {
+  /**
+   * This test requires your account is able to login localhost over SSH without
+   * any password intervention.
+   * TODO: Flaky 7/18/2017
+   */
+  @Test(timeout = 20_000)
+  public void givenEchoCommand$whenRunWithSsh$thenExepectedOutputIsWrittenBothToStdoutAndStderr() throws Exception {
+    LOGGER.info("test-19");
+    boolean finished = false;
+    try {
+      String userName = TestUtils.userName();
+      String hostName = TestUtils.hostName();
+      String privKey = TestUtils.identity();
+
+      assertThat(
+          runRemote(userName, hostName, privKey, "echo hello1"),
+          allOf(
+              matcherBuilder("stdout", CommandResult::stdout).check("=='hello1'", s -> s.equals("hello1")).build(),
+              anyOf(
+                  matcherBuilder("stdout", CommandResult::stderr).check("==''", s -> s.equals("")).build(),
+                  matcherBuilder("stdout", CommandResult::stderr).check("startsWith'Warning: Permanently added the RSA host key for IP address'", s -> s.startsWith("Warning: Permanently added the RSA host key for IP address")).build()
+              ),
+              matcherBuilder("exitCode", CommandResult::exitCode).check("==0", e -> e == 0).build()
+          ));
+      finished = true;
+    } finally {
+      if (!finished) {
+        LOGGER.error("In order to make this test pass, you have to configure your passphraseless ssh key");
+      }
+    }
+  }
+
+  /**
+   * TODO: Flaky 7/18/2017
+   */
+  @Test(timeout = 10_000)
+  public void givenEchoCommand$whenRunRemotely$thenOutputIsWrittenToStdoutCorrectly() throws Exception {
+    LOGGER.info("test-20");
+    String userName = runLocal("whoami").stdout();
+    String hostName = runLocal("hostname").stdout();
+
+    assertCommandResult(
+        runRemote(userName, hostName, TestUtils.identity(), "echo hello"),
+        "hello",
+        "",
+        "hello",
+        0
+    );
+
+  }
+
+  @Test(expected = CommandTimeoutException.class, timeout = 10_000)
+  public void givenCommandThatTakes3secs$whenRunLocallyWith1secTimeout$thenCommandTimeoutExceptionThrown() throws Exception {
+    LOGGER.info("test-21");
+    try {
+      runLocal(1000, "sleep 3").exitCode();
+      TestCase.fail("The command didn't time out in 1 sec!");
+    } finally {
+      ////
+      // Sleep 2.5sec to make sure the spawned process goes away
+      Thread.sleep(2500);
+    }
+  }
+
+  @Test(expected = CommandTimeoutException.class, timeout = 10_000)
+  public void givenCommandThatTakes3secs$whenRunRemotelyWith1secTimeout$thenCommandTimeoutExceptionThrown() throws Exception {
+    LOGGER.info("test-22");
+    try {
+      String userName = runLocal("whoami").stdout();
+      String hostName = runLocal("hostname").stdout();
+
+      runRemote(1000, userName, hostName, TestUtils.identity(), "sleep 3");
+      TestCase.fail("The command didn't time out in 1 sec!");
+    } finally {
+      ////
+      // Sleep 2.5sec to make sure the spawned process goes away
+      Thread.sleep(100);
+    }
+  }
+
+  @Test(timeout = 20_000)
+  public void givenEchoHello$whenRunRemotely$thenExpectedOutputIsWrittenToStdout() throws Exception {
+    LOGGER.info("test-23");
+    String userName = runLocal("whoami").stdout();
+    String hostName = runLocal("hostname").stdout();
+
+    assertCommandResult(
+        runRemote(15_000, userName, hostName, TestUtils.identity(), "echo hello"),
+        "hello",
+        "",
+        "hello",
+        0
+    );
+  }
+
+  private static void assertCommandResult(CommandResult result, String stdout, String stderr, String stdouterr, int exitCode) {
+    assertThat(
+        result,
+        allOf(
+            matcherBuilder(
+                "stdout", CommandResult::stdout
+            ).check(
+                "=='" + stdout + "'", s -> s.equals(stdout)
+            ).build(),
+            matcherBuilder(
+                "stderr", CommandResult::stderr
+            ).check(
+                "=='" + stderr + "'", s -> s.equals(stderr)
+            ).build(),
+            stdouterr != null ?
+                matcherBuilder(
+                    "stdouterr", CommandResult::stdouterr
+                ).check(
+                    "=='" + stdouterr + "'", s -> s.equals(stdouterr)
+                ).build() :
+                CoreMatchers.anything()
+            ,
+            matcherBuilder(
+                "exitCode", CommandResult::exitCode
+            ).check(
+                "==" + exitCode, s -> s.equals(exitCode)
+            ).build()
+        ));
+  }
+
+  private static String buildExpectedOutputFromDevZeroEncodedByBase64(@SuppressWarnings("SameParameterValue") int numCharsPerOneLine, @SuppressWarnings("SameParameterValue") int numCharsInLastLine) {
     StringBuilder b = new StringBuilder();
     for (int i = 1; i < 100; i++) {
       b.append(buildExpectedDataOneLine(numCharsPerOneLine));
@@ -375,108 +514,12 @@ public class CommandUtilsTest {
     return b.toString();
   }
 
-  private String buildExpectedDataOneLine(int numChars) {
+  private static String buildExpectedDataOneLine(int numChars) {
     StringBuilder b = new StringBuilder(numChars * 2);
     for (int i = 0; i < numChars; i++) {
       b.append("A");
     }
     return b.toString();
-  }
-
-  /**
-   * This test requires your account is able to login localhost over SSH without
-   * any password intervention.
-   */
-  @Test(timeout = 20_000)
-  public void test_19() throws Exception {
-    LOGGER.info("test-19");
-    boolean finished = false;
-    try {
-      String userName = CommandUtils.runLocal("whoami").stdout();
-      String hostName = CommandUtils.runLocal("hostname").stdout();
-      //String privKey  = String.format("%s/.ssh/id_rsa", CommandUtils.runLocal("echo $HOME").to());
-      String privKey = TestUtils.identity();
-
-      CommandResult result = CommandUtils.runRemote(userName, hostName, privKey, "echo hello1");
-      TestCase.assertEquals("hello1", result.stdout());
-      TestCase.assertEquals("", result.stderr());
-      assertThat(result.stderr(), anyOf(
-          CoreMatchers.equalTo(""),
-          CoreMatchers.startsWith("Warning: Permanently added the RSA host key for IP address")
-      ));
-      TestCase.assertEquals(0, result.exitCode());
-      finished = true;
-    } finally {
-      if (!finished) {
-        LOGGER.error("In order to make this test pass, you have to set from your passphraseless ssh key");
-      }
-    }
-  }
-
-  @Test(timeout = 20_000)
-  public void test_20() throws Exception {
-    LOGGER.info("test-20");
-    String userName = CommandUtils.runLocal("whoami").stdout();
-    String hostName = CommandUtils.runLocal("hostname").stdout();
-
-    CommandResult result = CommandUtils.runRemote(userName, hostName, TestUtils.identity(), "echo hello");
-    TestCase.assertEquals("hello", result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
-  }
-
-  private static int PID;
-
-
-  @Test(expected = CommandTimeoutException.class, timeout = 10_000)
-  public void test_21() throws Exception {
-    LOGGER.info("test-21");
-    PID = -1;
-    try {
-      CommandUtils.runLocal(1000, "sleep 10");
-      TestCase.fail("The command didn't time out in 1 sec!");
-    } finally {
-      Thread.sleep(100);
-      CommandResult result;
-      result = CommandUtils.runLocal(String.format("ps -o pid= -p %s", PID));
-      TestCase.assertEquals("", result.stdout()); // make sure the process is killed.
-      TestCase.assertEquals(1, result.exitCode());
-    }
-  }
-
-  @Test(expected = CommandTimeoutException.class, timeout = 10_000)
-  public void test_22() throws Exception {
-    LOGGER.info("test-22");
-    PID = -1;
-    try {
-      String userName = CommandUtils.runLocal("whoami").stdout();
-      String hostName = CommandUtils.runLocal("hostname").stdout();
-
-      CommandUtils.runRemote(1000, userName, hostName, TestUtils.identity(), "sleep 10");
-      TestCase.fail("The command didn't time out in 1 sec!");
-    } finally {
-      Thread.sleep(100);
-      CommandResult result;
-      result = CommandUtils.runLocal(String.format("ps -o pid= -p %s", PID));
-      TestCase.assertEquals("", result.stdout()); // make sure the process is killed.
-      TestCase.assertEquals(1, result.exitCode());
-    }
-  }
-
-  @Test(timeout = 20_000)
-  public void test_23() throws Exception {
-    LOGGER.info("test-23");
-    String userName = CommandUtils.runLocal("whoami").stdout();
-    String hostName = CommandUtils.runLocal("hostname").stdout();
-
-    CommandResult result = CommandUtils.runRemote(15_000, userName, hostName, TestUtils.identity(), "echo hello");
-    TestCase.assertEquals("hello", result.stdout());
-    TestCase.assertEquals("", result.stderr());
-    TestCase.assertEquals(0, result.exitCode());
-  }
-
-  private static String systemName() {
-    return System.getProperty("os.name");
   }
 }
 

@@ -2,7 +2,6 @@ package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.core.Selector;
 import com.github.dakusui.cmd.utils.TestUtils;
-import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -21,7 +20,7 @@ public class SelectorTest extends TestUtils.TestBase {
     List<String> out = new LinkedList<>();
     ExecutorService executorService = Executors.newFixedThreadPool(3);
     try {
-      Selector<String> selector = createSelector();
+      Selector<String> selector = createSelector(50, 100, 200);
       selector.stream().forEach(
           ((Consumer<String>) s -> {
             System.err.println("taken:" + s);
@@ -31,30 +30,32 @@ public class SelectorTest extends TestUtils.TestBase {
       );
       out.forEach(System.out::println);
       //noinspection unchecked
-      assertThat(out, CoreMatchers.allOf(
-          TestUtils.<List<String>, Integer>matcherBuilder()
-              .transform("sizeOf", List::size)
-              .check("5+10==", u -> 5 + 10 == u)
-              .build(),
-          TestUtils.MatcherBuilder.<List<String>>simple()
-              .check("interleaving", u -> !u.equals(u.stream().sorted().collect(toList())))
-              .build()
+      assertThat(
+          out,
+          TestUtils.allOf(
+              TestUtils.<List<String>, Integer>matcherBuilder()
+                  .transform("sizeOf", List::size)
+                  .check("50+100==", u -> 50 + 100 == u)
+                  .build(),
+              TestUtils.MatcherBuilder.<List<String>>simple()
+                  .check("interleaving", u -> !u.equals(u.stream().sorted().collect(toList())))
+                  .build()
 
-      ));
+          ));
     } finally {
       System.out.println("shutting to");
       executorService.shutdown();
     }
   }
 
-  private Selector<String> createSelector() {
+  private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {
     return new Selector.Builder<String>()
-        .add(list("A", 5).stream().filter(s -> sleepAndReturn(true)), s -> {
+        .add(list("A", sizeA).stream().filter(s -> sleepAndReturn(true)), s -> {
         }, true)
-        .add(list("B", 10).stream().filter(s -> sleepAndReturn(true)), s -> {
+        .add(list("B", sizeB).stream().filter(s -> sleepAndReturn(true)), s -> {
 
         }, true)
-        .add(list("C", 20).stream().filter(s -> sleepAndReturn(false)), s -> {
+        .add(list("C", sizeC).stream().filter(s -> sleepAndReturn(false)), s -> {
         }, true)
         .build();
   }

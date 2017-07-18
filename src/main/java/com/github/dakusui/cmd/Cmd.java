@@ -80,7 +80,7 @@ public interface Cmd {
    */
   Cmd readFrom(Supplier<Stream<String>> stdin);
 
-  Supplier<Stream<String>> stdin();
+  <S extends Supplier<Stream<String>>> S stdin();
 
   /**
    * A stream returned by this method should be closed by {@code close()} when the
@@ -219,12 +219,12 @@ public interface Cmd {
     }
 
     @Override
-    synchronized public Supplier<Stream<String>> stdin() {
+    synchronized public <S extends Supplier<Stream<String>>> S stdin() {
       if (this.stdin == null) {
         this.stdin = new StreamableQueue<>(100);
       }
       //noinspection unchecked
-      return this.stdin;
+      return (S) this.stdin;
     }
 
     @Override
@@ -235,11 +235,6 @@ public interface Cmd {
     }
 
     /**
-     * It is not guaranteed that you get a {@code CommandExecutionException} on
-     * an operation when a command fails because internal state can be changed by
-     * independent thread and the returned stream can be closed by it. When this
-     * happens an operation on the stream will throw a {@code RuntimeException} of
-     * other types.
      *
      * @return A stream
      */
@@ -265,7 +260,6 @@ public interface Cmd {
           o -> {
             if (!process.isAlive())
               if (!exitValueChecker.test(process.exitValue())) {
-                System.out.println("!!!!");
                 throw new UnexpectedExitValueException(
                     this.process.exitValue(),
                     this.toString(),
@@ -372,7 +366,7 @@ public interface Cmd {
           exitValue = this.process.exitValue();
 
         ////
-        // By this point, the process should be finished.
+        // By this point, the process should be finished already.
         boolean failed = !this.exitValueChecker.test(exitValue);
         LOGGER.trace("INFO:{};failed={}", this, failed);
         if (abort || failed) {
@@ -405,12 +399,6 @@ public interface Cmd {
 
     private void _abort() {
       LOGGER.debug("BEGIN:{}", this);
-      try {
-        // TODO
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
       this.process.destroy();
       LOGGER.debug("END:{}", this);
     }

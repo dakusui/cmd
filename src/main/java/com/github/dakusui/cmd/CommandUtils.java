@@ -44,26 +44,36 @@ public enum CommandUtils {
     RingBufferedLineWriter stdouterr = new RingBufferedLineWriter(100);
     AtomicReference<Integer> exitValueHolder = new AtomicReference<>(null);
     Cmd cmd = new Cmd.Builder()
-        .with(shell)
-        .command(command)
-        .charset(Charset.defaultCharset())
-        .checkExitValue(((IntPredicate) (exitValue -> {
-          synchronized (exitValueHolder) {
-            exitValueHolder.set(exitValue);
-            exitValueHolder.notifyAll();
-          }
-          return true;
-        })).and(exitValue -> exitValue == 0))
-        .transformInput(s -> s)
-        .transformStdout(s -> s)
-        .consumeStdout(
+        .with(
+            shell
+        ).command(
+            command
+        ).charset(
+            Charset.defaultCharset()
+        ).checkExitValue(
+            ((IntPredicate) (exitValue -> {
+              synchronized (exitValueHolder) {
+                exitValueHolder.set(exitValue);
+                exitValueHolder.notifyAll();
+              }
+              return true;
+            })).and(
+                ////
+                // Since exitValue should be stored in CommandResult object, no exception
+                // needs to be thrown.
+                exitValue -> true
+            )
+        ).transformInput(
+            s -> s
+        ).transformStdout(
+            s -> s
+        ).consumeStdout(
             ((Consumer<String>) (stdout::write)).andThen(stdouterr::write).andThen(System.err::println)
-        )
-        .transformStderr(s -> s)
-        .consumeStderr(
+        ).transformStderr(
+            s -> s
+        ).consumeStderr(
             ((Consumer<String>) (stderr::write)).andThen(stdouterr::write).andThen(System.err::println)
-        )
-        .build();
+        ).build();
 
     final Callable<CommandResult> callable = () -> {
       try {
@@ -78,20 +88,14 @@ public enum CommandUtils {
           }
         }
         return new CommandResult(
-            String.join(" "),
+            command,
             exitValue,
             stdout.asString(),
             stderr.asString(),
             stdouterr.asString()
         );
       } catch (UnexpectedExitValueException e) {
-        return new CommandResult(
-            shell.format(),
-            e.exitValue(),
-            stdout.asString(),
-            stderr.asString(),
-            stdouterr.asString()
-        );
+        throw Exceptions.illegalException(e);
       }
     };
     if (timeOut <= 0) {

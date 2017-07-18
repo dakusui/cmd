@@ -1,6 +1,5 @@
-package com.github.dakusui.cmd.ut;
+package com.github.dakusui.cmd.tmp;
 
-import com.github.dakusui.cmd.tmp.CompatCmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;

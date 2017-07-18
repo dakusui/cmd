@@ -1,6 +1,5 @@
-package com.github.dakusui.cmd.ut;
+package com.github.dakusui.cmd.tmp;
 
-import com.github.dakusui.cmd.tmp.CompatCmd;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
@@ -10,7 +9,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.ut.CmdTeeTest.outMatcherBuilder;
+import static com.github.dakusui.cmd.tmp.CmdTeeTest.outMatcherBuilder;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 

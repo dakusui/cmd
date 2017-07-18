@@ -3,7 +3,6 @@ package com.github.dakusui.cmd.utils;
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.exceptions.Exceptions;
-import com.github.dakusui.cmd.tmp.CompatCmd;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.DiagnosingMatcher;
@@ -115,7 +114,7 @@ public enum TestUtils {
     ///
     // Safest way to get hostname. (or least bad way to get it)
     // See http://stackoverflow.com/questions/7348711/recommended-way-to-get-hostname-in-java
-    return CompatCmd.stream(Shell.local(), "hostname").collect(Collectors.joining());
+    return Cmd.cmd(Shell.local(), "hostname").stream().collect(Collectors.joining());
   }
 
   public static InputStream openForRead(File file) {

@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd.scenario;
+package com.github.dakusui.cmd.tmp;
 
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.utils.TestUtils;
