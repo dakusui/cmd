@@ -21,7 +21,8 @@ import static com.github.dakusui.cmd.utils.TestUtils.allOf;
 import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class CmdTest extends TestUtils.TestBase {
   private List<String> out = Collections.synchronizedList(new LinkedList<>());
@@ -96,7 +97,25 @@ public class CmdTest extends TestUtils.TestBase {
         System.out::println
     );
   }
-  
+
+  @Test(timeout = 15_000)
+  public void pipe100K() {
+    Cmd.cmd(
+        "seq 1 100000"
+    ).connectTo(
+        Cmd.cat().pipeline(
+            stream -> stream.peek(
+                s -> System.out.println("right:" + s)
+            ).map(
+                s -> "DOWN:" + s
+            )
+        )
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+
   @Test(timeout = 3_000)
   public void teeExample1() {
     cmd(

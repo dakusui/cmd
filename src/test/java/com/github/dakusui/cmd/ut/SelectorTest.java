@@ -1,5 +1,7 @@
 package com.github.dakusui.cmd.ut;
 
+import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.core.Selector;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
@@ -76,12 +78,35 @@ public class SelectorTest extends TestUtils.TestBase {
   }
 
   @Test(timeout = 5_000)
-  public void select10Kdata() {
+  public void select100Kdata() {
     select(
         SelectorTest.<String>list("A", 100_000).stream(),
         SelectorTest.<String>list("B", 100_000).stream(),
         SelectorTest.<String>list("C", 100_000).stream()
     ).forEach(System.out::println);
+  }
+
+  @Test
+  public void select100Kdata2() {
+    StreamableQueue<String> down = new StreamableQueue<>(100);
+    new Thread(() -> down.get().forEach(System.out::println)).start();
+    new Selector.Builder<String>(
+    ).add(
+        SelectorTest.<String>list("stdin", 100_000).stream(),
+        System.out::println,
+        false
+    ).add(
+        SelectorTest.<String>list("stdout", 100_000).stream(),
+        down,
+        true
+    ).add(
+        SelectorTest.<String>list("stderr", 100_000).stream(),
+        System.out::println,
+        false
+    ).build(
+    ).stream().forEach(
+        IoUtils.nop()
+    );
   }
 
   private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {

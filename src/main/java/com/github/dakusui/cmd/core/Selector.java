@@ -67,7 +67,8 @@ public interface Selector<T> {
 
     public Selector<T> build() {
       return () ->
-          consumers.keySet().stream(
+          consumers.keySet(
+          ).stream(
           ).parallel(
           ).flatMap(
               stream -> stream.map(

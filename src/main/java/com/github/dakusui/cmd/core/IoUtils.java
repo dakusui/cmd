@@ -27,9 +27,9 @@ public enum IoUtils {
     try {
       PrintStream ps = new PrintStream(os, true, charset.displayName());
       return s -> {
-        if (s != null)
+        if (s != null) {
           ps.println(s);
-        else
+        } else
           ps.close();
       };
     } catch (UnsupportedEncodingException e) {
