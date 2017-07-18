@@ -13,6 +13,7 @@ public interface Selector<T> {
   Stream<T> stream();
 
 
+  @SafeVarargs
   static <T> Stream<T> select(Stream<T>... streams) {
     return select(Arrays.asList(streams));
   }

@@ -52,6 +52,10 @@ public interface Cmd {
     return builder(Shell.local());
   }
 
+  static Cmd cat() {
+    return cmd("cat");
+  }
+
   static Cmd cmd(String commandLine) {
     return local().command(commandLine).build();
   }
@@ -60,7 +64,7 @@ public interface Cmd {
     return builder().with(shell).command(commandLine).build();
   }
 
-  Cmd pipeTo(Cmd... cmds);
+  Cmd connectTo(Cmd... cmds);
 
   /**
    * Returns a {@code Shell} object with which a command represented by this object
@@ -79,6 +83,15 @@ public interface Cmd {
    * @return This object
    */
   Cmd readFrom(Supplier<Stream<String>> stdin);
+
+  /**
+   * Sets a function that applies a given pipeline to a stream returned by {@code stream()}
+   * method.
+   *
+   * @param pipeline A definition of the pipeline to be applied.
+   * @return this object.
+   */
+  Cmd pipeline(Function<Stream<String>, Stream<String>> pipeline);
 
   <S extends Supplier<Stream<String>>> S stdin();
 
@@ -104,6 +117,7 @@ public interface Cmd {
     CLOSED
   }
 
+  @SuppressWarnings("WeakerAccess")
   class Builder {
     private Shell                                    shell             = null;
     private Function<Stream<String>, Stream<String>> inputTransformer  = null;
@@ -149,8 +163,7 @@ public interface Cmd {
      * A consumer set by this method will be applied to each element in stderr stream
      * BEFORE transformer set by {@code }transformStdout} is applied.
      *
-     * @param consumer
-     * @return
+     * @param consumer A consumer applied for each string in stdout.
      */
     public Builder consumeStdout(Consumer<String> consumer) {
       this.stdoutConsumer = requireNonNull(consumer);
@@ -161,8 +174,7 @@ public interface Cmd {
      * A consumer set by this method will be applied to each element in stderr stream
      * BEFORE transformer set by {@code }transformStderr} is applied.
      *
-     * @param consumer
-     * @return
+     * @param consumer A consumer applied for each string in stderr.
      */
     public Builder consumeStderr(Consumer<String> consumer) {
       this.stderrConsumer = requireNonNull(consumer);
@@ -183,7 +195,7 @@ public interface Cmd {
     private final Shell                                    shell;
     private final String                                   command;
     private final Charset                                  charset;
-    private final Function<Stream<String>, Stream<String>> inputTransformer;
+    private       Function<Stream<String>, Stream<String>> inputTransformer;
     private final Function<Stream<String>, Stream<String>> stderrTransformer;
     private final Consumer<String>                         stderrConsumer;
     private final Function<Stream<String>, Stream<String>> stdoutTransformer;
@@ -219,23 +231,29 @@ public interface Cmd {
     }
 
     @Override
+    public Cmd pipeline(Function<Stream<String>, Stream<String>> pipeline) {
+      requireState(State.PREPARING);
+      this.inputTransformer = inputTransformer.andThen(requireNonNull(pipeline));
+      return this;
+    }
+
+    @Override
     synchronized public <S extends Supplier<Stream<String>>> S stdin() {
       if (this.stdin == null) {
-        this.stdin = new StreamableQueue<>(100);
+        this.stdin = new StreamableQueue<>(1_000);
       }
       //noinspection unchecked
       return (S) this.stdin;
     }
 
     @Override
-    synchronized public Cmd pipeTo(Cmd... cmds) {
+    synchronized public Cmd connectTo(Cmd... cmds) {
       requireState(State.PREPARING);
       this.downstreams.addAll(Arrays.asList(cmds));
       return this;
     }
 
     /**
-     *
      * @return A stream
      */
     @Override
@@ -271,8 +289,10 @@ public interface Cmd {
           o -> (String) o
       );
       if (!downstreams.isEmpty()) {
+        ret = ret.peek(s -> System.out.println("notyetparallel:" + s));
         if (downstreams.size() > 1)
           ret = ret.parallel();
+        ret = ret.peek(s -> System.out.println("parallel:" + s));
         for (Cmd each : downstreams) {
           Supplier<Stream<String>> stdin = each.stdin();
           if (stdin instanceof StreamableQueue)
@@ -286,9 +306,22 @@ public interface Cmd {
                 Stream.of((String) null
                 )
             ).peek(
+                s -> System.out.println("before:select:" + s)
+            ).peek(
                 (String s) -> {
                   if (s == null) {
-                    downstreams.stream().map(Cmd::stdin).filter(i -> i instanceof Consumer).map(Consumer.class::cast).forEach(c -> c.accept(null));
+                    //noinspection unchecked
+                    downstreams.stream().map(
+                        Cmd::stdin
+                    ).filter(
+                        i -> i instanceof Consumer
+                    ).map(
+                        Consumer.class::cast
+                    ).forEach(
+                        // Close stream connected to the consumer by sending
+                        // null
+                        (Consumer c) -> c.accept(null)
+                    );
                     process.stdin().accept(null);
                   }
                 }
@@ -296,7 +329,15 @@ public interface Cmd {
             nop(),
             false
         );
-        downstreams.forEach(each -> builder.add(each.stream(), nop(), true));
+        downstreams.forEach(
+            each -> builder.add(
+                each.stream().peek(
+                    (String s) -> System.out.println("---" + s)
+                ),
+                nop(),
+                true
+            )
+        );
         ret = builder.build().stream();
       }
       return ret.peek(

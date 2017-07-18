@@ -13,7 +13,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class StreamableQueueTest {
+public class StreamableQueueTest extends TestUtils.TestBase {
   private List<String> out = Collections.synchronizedList(new LinkedList<>());
 
   @Test(timeout = 5_000)
@@ -105,5 +105,24 @@ public class StreamableQueueTest {
         )
     );
 
+  }
+
+  @Test(timeout = 15_000)
+  public void streamableQueue3() {
+    StreamableQueue<String> queue = new StreamableQueue<>(10);
+    new Thread(() -> {
+      for (int i = 0; i < 100_000; i++) {
+        queue.accept(String.format("left-%04d", i));
+      }
+      queue.accept(null);
+    }).start();
+    new Thread(() -> {
+      for (int i = 0; i < 100_000; i++) {
+        queue.accept(String.format("right-%04d", i));
+      }
+      queue.accept(null);
+    }).start();
+
+    queue.get().forEach(System.err::println);
   }
 }

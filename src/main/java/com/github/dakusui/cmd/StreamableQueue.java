@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -50,8 +51,22 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
           private void readNextIfNotYet() {
             if (next != null)
               return;
+            Object n;
+            synchronized (queue) {
+              while ((n = poll()) == null)
+                try {
+                  queue.wait();
+                } catch (InterruptedException ignored) {
+                ignored.printStackTrace();
+                }
+              queue.notifyAll();
+            }
+            next = n;
+          }
+
+          private Object poll() {
             try {
-              next = queue.take();
+              return queue.poll(0, TimeUnit.NANOSECONDS);
             } catch (InterruptedException e) {
               throw Exceptions.wrap(e);
             }
@@ -63,25 +78,37 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
 
   @Override
   public synchronized void accept(E e) {
-    if (closed)
-      //noinspection ConstantConditions
-      throw Exceptions.illegalState(closed, "closed==false");
-    if (e == null) {
-      close();
-      return;
+    synchronized (queue) {
+      if (closed)
+        //noinspection ConstantConditions
+        throw Exceptions.illegalState(String.format("closed==%s", closed), "closed==false");
+      if (e == null) {
+        System.out.println("closing!");
+        close();
+        return;
+      }
+      offer(e);
     }
-    queue.add(e);
+  }
+
+  private void offer(Object e) {
+    while (!queue.offer(e)) {
+      try {
+        queue.wait();
+      } catch (InterruptedException ignored) {
+      }
+    }
+    queue.notifyAll();
   }
 
   private void close() {
     LOGGER.debug("BEGIN:close:{}", this);
     if (closed)
       return;
-    queue.add(Cmd.SENTINEL);
     synchronized (queue) {
-      queue.notifyAll();
+      offer(Cmd.SENTINEL);
+      closed = true;
     }
-    closed = true;
     LOGGER.debug("END:close:{}", this);
   }
 }

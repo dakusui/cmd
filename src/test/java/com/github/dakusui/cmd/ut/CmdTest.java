@@ -14,17 +14,139 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.Cmd.cat;
 import static com.github.dakusui.cmd.Cmd.cmd;
+import static com.github.dakusui.cmd.Shell.ssh;
 import static com.github.dakusui.cmd.utils.TestUtils.allOf;
 import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.*;
 
 public class CmdTest extends TestUtils.TestBase {
   private List<String> out = Collections.synchronizedList(new LinkedList<>());
 
   @Test(timeout = 3_000)
-  public void streamExamplea() {
+  public void pipe() {
+    Cmd.cmd(
+        "echo hello && echo world"
+    ).connectTo(
+        Cmd.cmd("cat -n")
+    ).connectTo(
+        Cmd.cmd("sort -r")
+    ).connectTo(
+        Cmd.cmd("sed 's/hello/HELLO/'")
+    ).connectTo(
+        Cmd.cmd("sed -E 's/^ +//'")
+    ).stream(
+    ).map(
+        s -> String.format("<%s>", s)
+    ).forEach(
+        System.out::println
+    );
+  }
+
+  @Test(timeout = 15_000)
+  public void tee10K() {
+    Cmd.cmd(
+        "seq 1 10000"
+    ).connectTo(
+        Cmd.cat().pipeline(
+            stream -> stream.peek(
+                s -> System.out.println("left:" + s)
+            ).map(
+                s -> "LEFT:" + s
+            )
+        ),
+        Cmd.cat().pipeline(
+            stream -> stream.peek(
+                s -> System.out.println("right:" + s)
+            ).map(
+                s -> "RIGHT:" + s
+            )
+        )
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+
+  }
+
+  @Test(timeout = 15_000)
+  public void tee100K() {
+    Cmd.cmd(
+        "seq 1 100000"
+    ).connectTo(
+        Cmd.cat().pipeline(
+            stream -> stream.peek(
+                s -> System.out.println("left:" + s)
+            ).map(
+                s -> "LEFT:" + s
+            )
+        ),
+        Cmd.cat().pipeline(
+            stream -> stream.peek(
+                s -> System.out.println("right:" + s)
+            ).map(
+                s -> "RIGHT:" + s
+            )
+        )
+    ).stream(
+    ).forEach(
+        System.out::println
+    );
+  }
+  
+  @Test(timeout = 3_000)
+  public void teeExample1() {
+    cmd(
+        "cat"
+    ).readFrom(
+        () -> Stream.of("Hello", "World")
+    ).connectTo(
+        cat().pipeline(stream -> stream.map(String::toUpperCase)),
+        cat().pipeline(stream -> stream.map(String::toLowerCase))
+    ).stream(
+    ).peek(
+        System.out::println
+    ).forEach(
+        out::add
+    );
+
+    assertThat(
+        out.stream().sorted().collect(toList()),
+        allOf(
+            TestUtils.<List<String>, Integer>matcherBuilder(
+                "size", List::size
+            ).check(
+                "==4", size -> size == 4
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt0", o -> o.get(0)
+            ).check(
+                "=='HELLO'", s -> s.equals("HELLO")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt1", o -> o.get(1)
+            ).check(
+                "=='WORLD'", s -> s.equals("WORLD")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt2", o -> o.get(2)
+            ).check(
+                "=='hello'", s -> s.equals("hello")
+            ).build(),
+            TestUtils.<List<String>, String>matcherBuilder(
+                "elementAt3", o -> o.get(3)
+            ).check(
+                "=='world'", s -> s.equals("world")
+            ).build()
+        )
+    );
+  }
+
+  @Test(timeout = 3_000)
+  public void streamExampleA() {
     Cmd cmd = cmd(
         "cat -n"
     );
@@ -194,7 +316,7 @@ public class CmdTest extends TestUtils.TestBase {
         "echo Hello && echo world"
     ).readFrom(
         Stream::empty
-    ).pipeTo(cmd(
+    ).connectTo(cmd(
         "cat -n"
     )).stream(
     ).peek(
@@ -232,7 +354,7 @@ public class CmdTest extends TestUtils.TestBase {
         "echo Hello && echo world"
     ).readFrom(
         Stream::empty
-    ).pipeTo(
+    ).connectTo(
         cmd(
             "cat -n"
         ),
@@ -247,7 +369,7 @@ public class CmdTest extends TestUtils.TestBase {
     );
 
     assertThat(
-        out.stream().sorted().collect(Collectors.toList()),
+        out.stream().sorted().collect(toList()),
         allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
@@ -282,10 +404,10 @@ public class CmdTest extends TestUtils.TestBase {
   public void streamExample5() {
     cmd(
         "echo world && echo Hello"
-    ).pipeTo(
+    ).connectTo(
         cmd(
             "sort"
-        ).pipeTo(cmd(
+        ).connectTo(cmd(
             "cat -n"
         ))
     ).readFrom(
@@ -298,7 +420,7 @@ public class CmdTest extends TestUtils.TestBase {
     );
 
     assertThat(
-        out.stream().sorted().collect(Collectors.toList()),
+        out.stream().sorted().collect(toList()),
         allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
@@ -325,13 +447,13 @@ public class CmdTest extends TestUtils.TestBase {
         "echo world && echo Hello"
     ).readFrom(
         Stream::empty
-    ).pipeTo(
+    ).connectTo(
         cmd(
             "cat"
         ),
         cmd(
             "sort"
-        ).pipeTo(cmd(
+        ).connectTo(cmd(
             "cat -n"
         ))
     ).stream(
@@ -342,7 +464,7 @@ public class CmdTest extends TestUtils.TestBase {
     );
 
     assertThat(
-        out.stream().sorted().collect(Collectors.toList()),
+        out.stream().sorted().collect(toList()),
         allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
@@ -385,7 +507,7 @@ public class CmdTest extends TestUtils.TestBase {
     );
 
     assertThat(
-        out.stream().sorted().collect(Collectors.toList()),
+        out.stream().sorted().collect(toList()),
         allOf(
             matcherBuilder(
                 "size", (Function<List<String>, Integer>) List::size
@@ -410,7 +532,7 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"
-    ).pipeTo(
+    ).connectTo(
         cmd("cat -n")
     ).stream(
     ).peek(
@@ -427,7 +549,7 @@ public class CmdTest extends TestUtils.TestBase {
       System.out.println("=== " + i + " ===");
       Cmd cmd = cmd(
           "unknownCommand hello"
-      ).pipeTo(
+      ).connectTo(
           cmd("cat -n")
       );
       if (!TestUtils.terminatesIn(
@@ -447,7 +569,7 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample3() {
     cmd(
         "echo hello"
-    ).pipeTo(
+    ).connectTo(
         cmd("unknownCommand -n")
     ).stream(
     ).peek(
@@ -461,7 +583,7 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample4() {
     cmd(
         "echo hello"
-    ).pipeTo(
+    ).connectTo(
         cmd("cat -n"),
         cmd("unknownCommand -n")
     ).stream(
@@ -476,8 +598,8 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample5() {
     cmd(
         "echo hello"
-    ).pipeTo(
-        cmd("unknownCommand -n").pipeTo(
+    ).connectTo(
+        cmd("unknownCommand -n").connectTo(
             cmd("cat -n")
         )
     ).stream(
@@ -488,4 +610,17 @@ public class CmdTest extends TestUtils.TestBase {
     );
   }
 
+  @Test(timeout = 10_000)
+  public void sshExample() {
+    assertEquals(
+        "hello",
+        cmd(
+            ssh(TestUtils.userName(), TestUtils.hostName(), TestUtils.identity()),
+            "echo hello"
+        ).stream(
+        ).collect(
+            Collectors.joining()
+        )
+    );
+  }
 }

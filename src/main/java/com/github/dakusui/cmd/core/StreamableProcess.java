@@ -206,7 +206,7 @@ public class StreamableProcess extends Process {
       return builder.stderrTransformer;
     }
 
-    public Charset charset() {
+    Charset charset() {
       return builder.charset;
     }
 

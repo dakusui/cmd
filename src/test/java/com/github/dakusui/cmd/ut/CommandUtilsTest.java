@@ -277,13 +277,24 @@ public class CommandUtilsTest {
   @Test
   public void givenEchoPipedWithCatN$whenLocally$thenLineNumberedDataWrittenToStdout() throws Exception {
     assertThat(
-        runLocal("echo hello | cat -n").stdout(),
-        CoreMatchers.containsString("1\thello")
-    );
+        runLocal("echo hello | cat -n"),
+        allOf(
+            matcherBuilder(
+                "stdout", CommandResult::stdout
+            ).check(
+                "containsString'1\thello'", s -> s.contains("1\thello")
+            ).build(),
+            matcherBuilder(
+                "toString", CommandResult::toString
+            ).check(
+                "equals'...'", s -> s.equals("'echo hello | cat -n' exit with 0:''")
+            ).build()
+        ));
   }
 
   /**
    * TODO: Flaky 7/18/2017
+   *
    * @throws Exception
    */
   @Test(timeout = 10000)

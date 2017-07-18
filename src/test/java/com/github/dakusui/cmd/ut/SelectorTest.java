@@ -11,10 +11,37 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
+import static com.github.dakusui.cmd.core.Selector.select;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class SelectorTest extends TestUtils.TestBase {
+  /**
+   * TODO: Flakiness was seen (7/18/2017)
+   * <pre>
+   *   B-99
+   * shutting to
+   *
+   * java.lang.NullPointerException
+   * at java.util.LinkedList$ListItr.next(LinkedList.java:893)
+   * at java.lang.Iterable.forEach(Iterable.java:74)
+   * at com.github.dakusui.cmd.ut.SelectorTest.given3Streams$whenSelect$thenAllElementsFoundInOutputAndInterleaved(SelectorTest.java:31)
+   * at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+   * at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+   * at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+   * at java.lang.reflect.Method.invoke(Method.java:497)
+   * at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)
+   * at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+   * at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)
+   * at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+   * at org.junit.internal.runners.statements.FailOnTimeout$CallableStatement.call(FailOnTimeout.java:298)
+   * at org.junit.internal.runners.statements.FailOnTimeout$CallableStatement.call(FailOnTimeout.java:292)
+   * at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+   * at java.lang.Thread.run(Thread.java:745)
+   *
+   *
+   * </pre>
+   */
   @Test(timeout = 5_000)
   public void given3Streams$whenSelect$thenAllElementsFoundInOutputAndInterleaved() {
     List<String> out = new LinkedList<>();
@@ -48,6 +75,15 @@ public class SelectorTest extends TestUtils.TestBase {
     }
   }
 
+  @Test(timeout = 5_000)
+  public void select10Kdata() {
+    select(
+        SelectorTest.<String>list("A", 100_000).stream(),
+        SelectorTest.<String>list("B", 100_000).stream(),
+        SelectorTest.<String>list("C", 100_000).stream()
+    ).forEach(System.out::println);
+  }
+
   private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {
     return new Selector.Builder<String>()
         .add(list("A", sizeA).stream().filter(s -> sleepAndReturn(true)), s -> {
@@ -60,7 +96,7 @@ public class SelectorTest extends TestUtils.TestBase {
         .build();
   }
 
-  static List<String> list(String prefix, int size) {
+  private static List<String> list(String prefix, int size) {
     List<String> ret = new ArrayList<>(size);
     for (int i = 0; i < size; i++) {
       ret.add(String.format("%s-%s", prefix, i));

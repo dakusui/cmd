@@ -8,19 +8,40 @@ there are a lot of pitfalls.
 This library does it on behalf of you. To run '''echo hello''', you can simply do
 
 ```java
-    Cmd.cmd(Shell.local(), "echo hello").to().forEach(System.out::println);
+
+  public class BasicExample {
+    public void echoLocally() { 
+      Cmd.cmd("echo hello").stream().forEach(System.out::println);
+    }
+
+    public void echoLocallyWithExplicitShell() { 
+      Cmd.cmd(Shell.local(), "echo hello").stream().forEach(System.out::println);
+    }
+  }
+
 ```
+
+Examples above will print out a string ```echo``` to ```stdout```.
 
 To do it over ```ssh```, do
 
 ```java
-    Cmd.cmd(Shell.ssh("yourName", "yourHost"), "echo hello").to().forEach(System.out::println);
+
+  public class SshExample {
+    public void echoRemotely() { 
+      Cmd.cmd(Shell.ssh("yourName", "yourHost"), "echo hello").stream().forEach(System.out::println);
+    }
+  }
 ```
 
 If you want to specity an identity file (ssh key), you can do
 
 ```java
-    Cmd.cmd(Shell.ssh("yourName", "yourHost", "/home/yourName/.ssh/id_rsa"), "echo hello").to().forEach(System.out::println);
+  public class SshExample {
+    public void echoRemotelyWithIdentityFile() { 
+      Cmd.cmd(Shell.ssh("yourName", "yourHost", "/home/yourName/.ssh/id_rsa"), "echo hello").connect().forEach(System.out::println);
+    }
+  }
 ```
 
 Enjoy.
@@ -41,33 +62,53 @@ Enjoy.
 # More examples
 
 ## Redirection
+You can pipe commands not only using ```|``` in command line string but also using
+```connectTo``` method. This allows you to make your command line string 
+structured and programmable.
+
 ```java
 
-  public void pipe() {
-    Cmd.cmd(
-        Shell.local(),
-        "echo hello && echo world"
-    ).to(
-        "cat -n"
-    ).to(
-        "sort -r"
-    ).to(
-        "sed 's/hello/HELLO/'"
-    ).to(
-        "sed -E 's/^ +//'"
-    ).to(
-    ).map(
-        s -> String.format("<%s>", s)
-    ).forEach(
-        System.out::println
-    );
-  }
+    public class PipeExample {
+      public void pipe() {
+        Cmd.cmd(
+            "echo hello && echo world"
+        ).connectTo(
+            Cmd.cmd("cat -n")
+        ).connectTo(
+            Cmd.cmd("sort -r")
+        ).connectTo(
+            Cmd.cmd("sed 's/hello/HELLO/'")
+        ).connectTo(
+            Cmd.cmd("sed -E 's/^ +//'")
+        ).stream(
+        ).map(
+            s -> String.format("<%s>", s)
+        ).forEach(
+            System.out::println
+        );
+      }
+    }
+
 ```
 
+The example above will print something like following.
+
+```
+
+<     1	hello>
+<hello>
+<     2	world>
+<world>
+<HELLO>
+<world>
+<world>
+<hello>
+
+```
 ## Tee
 ```java
 
-    boolean result = Cmd.cmd(
+    Cmd.cmd(
         Shell.local(),
         "seq 1 10000"
     ).tee(
