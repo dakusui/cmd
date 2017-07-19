@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd.core;
 
+import com.github.dakusui.cmd.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
 import java.io.*;
@@ -13,6 +14,7 @@ import java.util.stream.StreamSupport;
 
 public enum IoUtils {
   ;
+
   /**
    * Returns a consumer which writes given string objects to an {@code OutputStream}
    * {@code os} using a {@code Charset} {@code charset}.
@@ -35,6 +37,12 @@ public enum IoUtils {
     } catch (UnsupportedEncodingException e) {
       throw Exceptions.wrap(e);
     }
+  }
+
+  public static <T> Consumer<T> flowControlValve(Consumer<T> consumer, int queueSize) {
+    return new StreamableQueue<T>(queueSize) {{
+      new Thread(() -> get().peek(s -> System.out.println("controlled:" + s)).forEach(consumer)).start();
+    }};
   }
 
   /**
@@ -65,7 +73,7 @@ public enum IoUtils {
    * An iterator returned by this method may return {@code null}, in case {@code next}
    * method is called after the input stream {@code is} is closed.
    *
-   * @param is An input stream from which returned iterator is created.
+   * @param is      An input stream from which returned iterator is created.
    * @param charset Charset used to decode data from {@code is}
    * @return An iterator that returns strings created from {@code id}
    */

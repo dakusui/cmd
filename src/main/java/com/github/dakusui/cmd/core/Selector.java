@@ -60,7 +60,7 @@ public interface Selector<T> {
      * @return This object.
      */
     public Builder<T> add(Stream<T> stream, Consumer<T> consumer, boolean passToDownStream) {
-      this.consumers.put(requireNonNull(stream), requireNonNull(consumer));
+      this.consumers.put(requireNonNull(stream), IoUtils.flowControlValve(requireNonNull(consumer), 100));
       this.toBePassed.put(stream, passToDownStream);
       return this;
     }

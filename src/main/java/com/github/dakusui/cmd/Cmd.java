@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd;
 
+import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.core.Selector;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
@@ -12,6 +13,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
@@ -22,7 +24,12 @@ import static com.github.dakusui.cmd.core.IoUtils.nop;
 import static java.util.Objects.requireNonNull;
 
 public interface Cmd {
-  Object SENTINEL = new Object();
+  Object SENTINEL = new Object() {
+    @Override
+    public String toString() {
+      return "SENTINEL";
+    }
+  };
   Logger LOGGER   = LoggerFactory.getLogger(Cmd.class);
 
   static Builder builder() {
@@ -204,6 +211,7 @@ public interface Cmd {
     private final List<Cmd>                                downstreams;
     private       State                                    state;
     private       StreamableProcess                        process;
+    private       ExecutorService                          threadPool;
     private Supplier<Stream<String>> stdin = null;
 
     private Impl(Shell shell, String command, IntPredicate exitValueChecker, Function<Stream<String>, Stream<String>> inputTransformer, Function<Stream<String>, Stream<String>> stdoutTransformer, Consumer<String> stdoutConsumer, Function<Stream<String>, Stream<String>> stderrTransformer, Consumer<String> stderrConsumer, Charset charset) {
@@ -240,7 +248,7 @@ public interface Cmd {
     @Override
     synchronized public <S extends Supplier<Stream<String>>> S stdin() {
       if (this.stdin == null) {
-        this.stdin = new StreamableQueue<>(1_000);
+        this.stdin = new StreamableQueue<>(10);
       }
       //noinspection unchecked
       return (S) this.stdin;
@@ -258,12 +266,15 @@ public interface Cmd {
      */
     @Override
     synchronized public Stream<String> stream() {
+      LOGGER.info("BEGIN:{}", this);
       requireState(State.PREPARING);
       this.process = startProcess(this.shell, this.command, composeProcessConfig());
       this.state = State.RUNNING;
       Stream<String> ret = Stream.concat(
           process.getSelector().stream(),
           Stream.of(Cmd.SENTINEL)
+      ).peek(
+          s -> LOGGER.info("BEFORE:{}:{}", this, s)
       ).filter(
           o -> {
             if (o == Cmd.SENTINEL) {
@@ -289,60 +300,50 @@ public interface Cmd {
           o -> (String) o
       );
       if (!downstreams.isEmpty()) {
-        ret = ret.peek(s -> System.out.println("notyetparallel:" + s));
-        if (downstreams.size() > 1)
-          ret = ret.parallel();
-        ret = ret.peek(s -> System.out.println("parallel:" + s));
-        for (Cmd each : downstreams) {
-          Supplier<Stream<String>> stdin = each.stdin();
-          if (stdin instanceof StreamableQueue)
-            //noinspection unchecked
-            ret = ret.peek((Consumer<? super String>) stdin);
-        }
-        Stream<String> up = ret;
-        Selector.Builder<String> builder = new Selector.Builder<String>().add(
-            Stream.concat(
-                up,
-                Stream.of((String) null
-                )
-            ).peek(
-                s -> System.out.println("before:select:" + s)
-            ).peek(
-                (String s) -> {
-                  if (s == null) {
-                    //noinspection unchecked
-                    downstreams.stream().map(
-                        Cmd::stdin
-                    ).filter(
-                        i -> i instanceof Consumer
-                    ).map(
-                        Consumer.class::cast
-                    ).forEach(
-                        // Close stream connected to the consumer by sending
-                        // null
-                        (Consumer c) -> c.accept(null)
-                    );
-                    process.stdin().accept(null);
-                  }
-                }
-            ),
-            nop(),
-            false
-        );
+        startDraining(ret, downstreams);
+        Selector.Builder<String> builder = new Selector.Builder<>();
         downstreams.forEach(
-            each -> builder.add(
-                each.stream().peek(
-                    (String s) -> System.out.println("---" + s)
-                ),
-                nop(),
+            eachDownstream -> builder.add(
+                eachDownstream.stream(),
+                IoUtils.<String>nop(),
                 true
             )
         );
         ret = builder.build().stream();
       }
+      LOGGER.info("END:{}", this);
       return ret.peek(
-          s -> LOGGER.trace("INFO:stream:{}:{}", this, s)
+          s -> LOGGER.info("AFTER:{}:{}", this, s)
       );
+    }
+
+    private void startDraining(Stream<String> from, List<Cmd> to) {
+      for (Cmd eachInDownstreams : to) {
+        Supplier<Stream<String>> stdinOfEach = eachInDownstreams.stdin();
+        if (stdinOfEach instanceof StreamableQueue) {
+          //noinspection unchecked
+          from = from.peek((Consumer<String>) stdinOfEach);
+        }
+      }
+      Stream<String> up = from;
+      new Thread(() -> {
+        if (to.size() > 1)
+          up.parallel().forEach(IoUtils.nop());
+        else
+          up.forEach(IoUtils.nop());
+        //noinspection unchecked
+        to.stream(
+        ).map(
+            Cmd::stdin
+        ).filter(
+            down -> down instanceof StreamableQueue
+        ).map(
+            Consumer.class::cast
+        ).parallel(
+        ).forEach(
+            eachDownstream -> eachDownstream.accept(null)
+        );
+      }).start();
     }
 
     @Override
@@ -419,8 +420,7 @@ public interface Cmd {
               ((Consumer) each.stdin()).accept(null);
             each.abort();
           }).forEach(
-              e -> {
-              }
+              IoUtils.nop()
           );
         }
 

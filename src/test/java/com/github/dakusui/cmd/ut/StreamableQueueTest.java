@@ -7,11 +7,10 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.dakusui.cmd.utils.TestUtils.allOf;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class StreamableQueueTest extends TestUtils.TestBase {
   private List<String> out = Collections.synchronizedList(new LinkedList<>());
@@ -123,6 +122,35 @@ public class StreamableQueueTest extends TestUtils.TestBase {
       queue.accept(null);
     }).start();
 
-    queue.get().forEach(System.err::println);
+    queue.get().forEach(
+        System.err::println
+    );
+  }
+
+  @Test(timeout = 15_000)
+  public void streamableQueue4() throws InterruptedException {
+    StreamableQueue<String> queue = new StreamableQueue<>(3);
+    Thread t;
+    (t = new Thread(() -> {
+      for (int i = 0; i < 10_000; i++) {
+        queue.accept(String.format("left-%04d", i));
+      }
+      queue.accept(null);
+    })).start();
+    Thread u;
+    (u = new Thread(() -> {
+      for (int i = 0; i < 10_000; i++) {
+        queue.accept(String.format("right-%04d", i));
+      }
+      queue.accept(null);
+    })).start();
+
+    Thread.sleep(80);
+
+    AtomicInteger c = new AtomicInteger(0);
+    queue.get().forEach(each -> c.getAndIncrement());
+
+    t.join();
+    u.join();
   }
 }

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Selector.select;
 import static java.util.stream.Collectors.toList;
@@ -89,23 +90,46 @@ public class SelectorTest extends TestUtils.TestBase {
   @Test
   public void select100Kdata2() {
     StreamableQueue<String> down = new StreamableQueue<>(100);
-    new Thread(() -> down.get().forEach(System.out::println)).start();
+    Stream<String> up = Stream.concat(SelectorTest.list("stdin", 100_000).stream(), Stream.of((String) null)).peek(down);
+    new Thread(() -> {
+      up.forEach(IoUtils.nop());
+    }).start();
     new Selector.Builder<String>(
     ).add(
-        SelectorTest.<String>list("stdin", 100_000).stream(),
-        System.out::println,
-        false
-    ).add(
         SelectorTest.<String>list("stdout", 100_000).stream(),
-        down,
+        IoUtils.nop(),
         true
     ).add(
         SelectorTest.<String>list("stderr", 100_000).stream(),
-        System.out::println,
+        System.err::println,
         false
     ).build(
     ).stream().forEach(
-        IoUtils.nop()
+        System.out::println
+    );
+  }
+
+  @Test
+  public void select100Kdata3() {
+    StreamableQueue<String> down1 = new StreamableQueue<>(100);
+    StreamableQueue<String> down2 = new StreamableQueue<>(100);
+    Stream<String> up = SelectorTest.list("stdin", 100_000).stream().parallel().peek(down1).peek(down2);
+    new Thread(() -> {
+      up.forEach(IoUtils.nop());
+      Stream.of(down1, down2).parallel().forEach(each -> each.accept(null));
+    }).start();
+    new Selector.Builder<String>(
+    ).add(
+        SelectorTest.<String>list("stdout", 100_000).stream(),
+        IoUtils.nop(),
+        true
+    ).add(
+        SelectorTest.<String>list("stderr", 100_000).stream(),
+        System.err::println,
+        false
+    ).build(
+    ).stream().forEach(
+        System.out::println
     );
   }
 

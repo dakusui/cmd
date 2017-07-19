@@ -8,7 +8,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -51,24 +50,14 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
           private void readNextIfNotYet() {
             if (next != null)
               return;
-            Object n;
             synchronized (queue) {
-              while ((n = poll()) == null)
+              while (queue.peek() == null)
                 try {
                   queue.wait();
                 } catch (InterruptedException ignored) {
-                ignored.printStackTrace();
                 }
+              next = queue.remove();
               queue.notifyAll();
-            }
-            next = n;
-          }
-
-          private Object poll() {
-            try {
-              return queue.poll(0, TimeUnit.NANOSECONDS);
-            } catch (InterruptedException e) {
-              throw Exceptions.wrap(e);
             }
           }
         }).spliterator(),
@@ -83,7 +72,6 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
         //noinspection ConstantConditions
         throw Exceptions.illegalState(String.format("closed==%s", closed), "closed==false");
       if (e == null) {
-        System.out.println("closing!");
         close();
         return;
       }
@@ -103,9 +91,9 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
 
   private void close() {
     LOGGER.debug("BEGIN:close:{}", this);
-    if (closed)
-      return;
     synchronized (queue) {
+      if (closed)
+        return;
       offer(Cmd.SENTINEL);
       closed = true;
     }

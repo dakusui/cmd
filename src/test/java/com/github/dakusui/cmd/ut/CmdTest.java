@@ -28,95 +28,6 @@ public class CmdTest extends TestUtils.TestBase {
   private List<String> out = Collections.synchronizedList(new LinkedList<>());
 
   @Test(timeout = 3_000)
-  public void pipe() {
-    Cmd.cmd(
-        "echo hello && echo world"
-    ).connectTo(
-        Cmd.cmd("cat -n")
-    ).connectTo(
-        Cmd.cmd("sort -r")
-    ).connectTo(
-        Cmd.cmd("sed 's/hello/HELLO/'")
-    ).connectTo(
-        Cmd.cmd("sed -E 's/^ +//'")
-    ).stream(
-    ).map(
-        s -> String.format("<%s>", s)
-    ).forEach(
-        System.out::println
-    );
-  }
-
-  @Test(timeout = 15_000)
-  public void tee10K() {
-    Cmd.cmd(
-        "seq 1 10000"
-    ).connectTo(
-        Cmd.cat().pipeline(
-            stream -> stream.peek(
-                s -> System.out.println("left:" + s)
-            ).map(
-                s -> "LEFT:" + s
-            )
-        ),
-        Cmd.cat().pipeline(
-            stream -> stream.peek(
-                s -> System.out.println("right:" + s)
-            ).map(
-                s -> "RIGHT:" + s
-            )
-        )
-    ).stream(
-    ).forEach(
-        System.out::println
-    );
-
-  }
-
-  @Test(timeout = 15_000)
-  public void tee100K() {
-    Cmd.cmd(
-        "seq 1 100000"
-    ).connectTo(
-        Cmd.cat().pipeline(
-            stream -> stream.peek(
-                s -> System.out.println("left:" + s)
-            ).map(
-                s -> "LEFT:" + s
-            )
-        ),
-        Cmd.cat().pipeline(
-            stream -> stream.peek(
-                s -> System.out.println("right:" + s)
-            ).map(
-                s -> "RIGHT:" + s
-            )
-        )
-    ).stream(
-    ).forEach(
-        System.out::println
-    );
-  }
-
-  @Test(timeout = 15_000)
-  public void pipe100K() {
-    Cmd.cmd(
-        "seq 1 100000"
-    ).connectTo(
-        Cmd.cat().pipeline(
-            stream -> stream.peek(
-                s -> System.out.println("right:" + s)
-            ).map(
-                s -> "DOWN:" + s
-            )
-        )
-    ).stream(
-    ).forEach(
-        System.out::println
-    );
-  }
-
-  @Test(timeout = 3_000)
   public void teeExample1() {
     cmd(
         "cat"
@@ -547,7 +458,7 @@ public class CmdTest extends TestUtils.TestBase {
     );
   }
 
-  @Test(timeout = 5_000, expected = RuntimeException.class)
+  @Test(/*timeout = 5_000,*/ /*expected = RuntimeException.class*/)
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"
