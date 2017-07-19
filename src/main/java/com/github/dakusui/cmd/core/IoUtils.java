@@ -41,7 +41,8 @@ public enum IoUtils {
 
   public static <T> Consumer<T> flowControlValve(Consumer<T> consumer, int queueSize) {
     return new StreamableQueue<T>(queueSize) {{
-      new Thread(() -> get().peek(s -> System.out.println("controlled:" + s)).forEach(consumer)).start();
+      new Thread(() -> get()
+          .forEach(consumer)).start();
     }};
   }
 
@@ -89,13 +90,13 @@ public enum IoUtils {
       String next;
 
       @Override
-      public boolean hasNext() {
+      public synchronized boolean hasNext() {
         readIfNotReadYet();
         return state != IteratorState.END;
       }
 
       @Override
-      public String next() {
+      public synchronized String next() {
         if (state == IteratorState.END)
           throw new NoSuchElementException();
         readIfNotReadYet();

@@ -12,6 +12,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -54,6 +55,14 @@ public enum TestUtils {
 
   public static String systemName() {
     return System.getProperty("os.name");
+  }
+
+  public static List<String> list(String prefix, int size) {
+    List<String> ret = new ArrayList<>(size);
+    for (int i = 0; i < size; i++) {
+      ret.add(String.format("%s-%s", prefix, i));
+    }
+    return ret;
   }
 
   /**

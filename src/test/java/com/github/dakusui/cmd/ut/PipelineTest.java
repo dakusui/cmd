@@ -4,14 +4,9 @@ import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.stream.Stream;
 
 public class PipelineTest extends TestUtils.TestBase {
-  private List<String> out = Collections.synchronizedList(new LinkedList<>());
-
   @Test(timeout = 3_000)
   public void pipe() {
     Cmd.cmd(

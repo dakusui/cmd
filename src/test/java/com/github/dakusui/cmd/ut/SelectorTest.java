@@ -6,7 +6,6 @@ import com.github.dakusui.cmd.core.Selector;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -81,26 +80,34 @@ public class SelectorTest extends TestUtils.TestBase {
   @Test(timeout = 5_000)
   public void select100Kdata() {
     select(
-        SelectorTest.<String>list("A", 100_000).stream(),
-        SelectorTest.<String>list("B", 100_000).stream(),
-        SelectorTest.<String>list("C", 100_000).stream()
+        TestUtils.<String>list("A", 100_000).stream(),
+        TestUtils.<String>list("B", 100_000).stream(),
+        TestUtils.<String>list("C", 100_000).stream()
     ).forEach(System.out::println);
   }
 
+  @Test(timeout = 5_000)
+  public void select100KdataUneven() {
+    select(
+        TestUtils.<String>list("A", 100).stream(),
+        TestUtils.<String>list("B", 100_000).stream(),
+        TestUtils.<String>list("C", 100_000).stream()
+    ).forEach(System.out::println);
+  }
   @Test
   public void select100Kdata2() {
     StreamableQueue<String> down = new StreamableQueue<>(100);
-    Stream<String> up = Stream.concat(SelectorTest.list("stdin", 100_000).stream(), Stream.of((String) null)).peek(down);
+    Stream<String> up = Stream.concat(TestUtils.list("stdin", 100_000).stream(), Stream.of((String) null)).peek(down);
     new Thread(() -> {
       up.forEach(IoUtils.nop());
     }).start();
     new Selector.Builder<String>(
     ).add(
-        SelectorTest.<String>list("stdout", 100_000).stream(),
+        TestUtils.<String>list("stdout", 100_000).stream(),
         IoUtils.nop(),
         true
     ).add(
-        SelectorTest.<String>list("stderr", 100_000).stream(),
+        TestUtils.<String>list("stderr", 100_000).stream(),
         System.err::println,
         false
     ).build(
@@ -113,18 +120,18 @@ public class SelectorTest extends TestUtils.TestBase {
   public void select100Kdata3() {
     StreamableQueue<String> down1 = new StreamableQueue<>(100);
     StreamableQueue<String> down2 = new StreamableQueue<>(100);
-    Stream<String> up = SelectorTest.list("stdin", 100_000).stream().parallel().peek(down1).peek(down2);
+    Stream<String> up = TestUtils.list("stdin", 100_000).stream().parallel().peek(down1).peek(down2);
     new Thread(() -> {
       up.forEach(IoUtils.nop());
       Stream.of(down1, down2).parallel().forEach(each -> each.accept(null));
     }).start();
     new Selector.Builder<String>(
     ).add(
-        SelectorTest.<String>list("stdout", 100_000).stream(),
+        TestUtils.<String>list("stdout", 100_000).stream(),
         IoUtils.nop(),
         true
     ).add(
-        SelectorTest.<String>list("stderr", 100_000).stream(),
+        TestUtils.<String>list("stderr", 100_000).stream(),
         System.err::println,
         false
     ).build(
@@ -135,22 +142,14 @@ public class SelectorTest extends TestUtils.TestBase {
 
   private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {
     return new Selector.Builder<String>()
-        .add(list("A", sizeA).stream().filter(s -> sleepAndReturn(true)), s -> {
+        .add(TestUtils.list("A", sizeA).stream().filter(s -> sleepAndReturn(true)), s -> {
         }, true)
-        .add(list("B", sizeB).stream().filter(s -> sleepAndReturn(true)), s -> {
+        .add(TestUtils.list("B", sizeB).stream().filter(s -> sleepAndReturn(true)), s -> {
 
         }, true)
-        .add(list("C", sizeC).stream().filter(s -> sleepAndReturn(false)), s -> {
+        .add(TestUtils.list("C", sizeC).stream().filter(s -> sleepAndReturn(false)), s -> {
         }, true)
         .build();
-  }
-
-  private static List<String> list(String prefix, int size) {
-    List<String> ret = new ArrayList<>(size);
-    for (int i = 0; i < size; i++) {
-      ret.add(String.format("%s-%s", prefix, i));
-    }
-    return ret;
   }
 
   private static boolean sleepAndReturn(boolean value) {

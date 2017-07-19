@@ -248,7 +248,7 @@ public interface Cmd {
     @Override
     synchronized public <S extends Supplier<Stream<String>>> S stdin() {
       if (this.stdin == null) {
-        this.stdin = new StreamableQueue<>(10);
+        this.stdin = new StreamableQueue<>(100);
       }
       //noinspection unchecked
       return (S) this.stdin;
@@ -271,10 +271,10 @@ public interface Cmd {
       this.process = startProcess(this.shell, this.command, composeProcessConfig());
       this.state = State.RUNNING;
       Stream<String> ret = Stream.concat(
-          process.getSelector().stream(),
+          process.stream(),
           Stream.of(Cmd.SENTINEL)
       ).peek(
-          s -> LOGGER.info("BEFORE:{}:{}", this, s)
+          s -> LOGGER.trace("BEFORE:{}:{}", this, s)
       ).filter(
           o -> {
             if (o == Cmd.SENTINEL) {
@@ -313,7 +313,7 @@ public interface Cmd {
       }
       LOGGER.info("END:{}", this);
       return ret.peek(
-          s -> LOGGER.info("AFTER:{}:{}", this, s)
+          s -> LOGGER.trace("AFTER:{}:{}", this, s)
       );
     }
 

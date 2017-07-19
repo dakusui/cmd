@@ -104,12 +104,15 @@ public class StreamableProcess extends Process {
     return String.format("StreamableProcess:%s '%s'", this.shell, this.command);
   }
 
+  public Stream<String> stream() {
+    return this.getSelector().stream();
+  }
 
   /**
    * Returns a {@code Stream<String>} object that represents standard output
    * of the underlying process.
    */
-  public Stream<String> stdout() {
+  private Stream<String> stdout() {
     return this.stdout;
   }
 
@@ -117,7 +120,7 @@ public class StreamableProcess extends Process {
    * Returns a {@code Stream<String>} object that represents standard error
    * of the underlying process.
    */
-  public Stream<String> stderr() {
+  private Stream<String> stderr() {
     return this.stderr;
   }
 
@@ -125,7 +128,7 @@ public class StreamableProcess extends Process {
    * Returns a {@code Consumer<String>} object that represents standard input
    * of the underlying process.
    */
-  public Consumer<String> stdin() {
+  private Consumer<String> stdin() {
     return this.stdin;
   }
 
@@ -133,12 +136,21 @@ public class StreamableProcess extends Process {
     return getPid(this.process);
   }
 
+  public Config getConfig() {
+    return config;
+  }
+
+  private Selector<String> getSelector() {
+    return selector;
+  }
+
   private static Selector<String> createSelector(Config config, Consumer<String> stdin, Stream<String> stdout, Stream<String> stderr) {
+    new Thread(() -> config.stdin().forEach(IoUtils.flowControlValve(stdin, 100))).start();
     return new Selector.Builder<String>(
-    ).add(
-        config.stdin(),
-        stdin,
-        false
+        //    ).add(
+        //        config.stdin(),
+        //        stdin,
+        //        false
     ).add(
         config.stdoutTransformer().apply(stdout),
         config.stdoutConsumer(),
@@ -166,14 +178,6 @@ public class StreamableProcess extends Process {
       throw new RuntimeException(String.format("PID isn't available on this platform. (%s)", e.getClass().getSimpleName()), e);
     }
     return ret;
-  }
-
-  public Selector<String> getSelector() {
-    return selector;
-  }
-
-  public Config getConfig() {
-    return config;
   }
 
   public static class Config {
