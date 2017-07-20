@@ -6,10 +6,9 @@ import com.github.dakusui.cmd.core.Selector;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -24,10 +23,11 @@ public class SelectorTest extends TestUtils.TestBase {
    *   B-99
    * shutting to
    *
+   * given3Streams$whenSelect$thenAllElementsFoundInOutputAndInterleaved(com.github.dakusui.cmd.ut.SelectorTest)  Time elapsed: 0.142 sec  <<< ERROR!
    * java.lang.NullPointerException
    * at java.util.LinkedList$ListItr.next(LinkedList.java:893)
    * at java.lang.Iterable.forEach(Iterable.java:74)
-   * at com.github.dakusui.cmd.ut.SelectorTest.given3Streams$whenSelect$thenAllElementsFoundInOutputAndInterleaved(SelectorTest.java:31)
+   * at com.github.dakusui.cmd.ut.SelectorTest.given3Streams$whenSelect$thenAllElementsFoundInOutputAndInterleaved(SelectorTest.java:60)
    * at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
    * at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
    * at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
@@ -46,8 +46,8 @@ public class SelectorTest extends TestUtils.TestBase {
    */
   @Test(timeout = 5_000)
   public void given3Streams$whenSelect$thenAllElementsFoundInOutputAndInterleaved() {
-    List<String> out = new LinkedList<>();
-    ExecutorService executorService = Executors.newFixedThreadPool(3);
+    List<String> out = Collections.synchronizedList(new LinkedList<>());
+
     try {
       Selector<String> selector = createSelector(50, 100, 200);
       selector.stream().forEach(
@@ -73,7 +73,6 @@ public class SelectorTest extends TestUtils.TestBase {
           ));
     } finally {
       System.out.println("shutting to");
-      executorService.shutdown();
     }
   }
 
@@ -121,7 +120,6 @@ public class SelectorTest extends TestUtils.TestBase {
   private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {
     return new Selector.Builder<String>(
         "UT"
-
     ).add(
         TestUtils.list("A", sizeA).stream().filter(s -> sleepAndReturn(true)),
         IoUtils.nop(),
