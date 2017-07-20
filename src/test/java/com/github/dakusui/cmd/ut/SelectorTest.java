@@ -118,31 +118,6 @@ public class SelectorTest extends TestUtils.TestBase {
     );
   }
 
-  @Test
-  public void select100Kdata3() {
-    StreamableQueue<String> down1 = new StreamableQueue<>(100);
-    StreamableQueue<String> down2 = new StreamableQueue<>(100);
-    Stream<String> up = TestUtils.list("stdin", 100_000).stream().parallel().peek(down1).peek(down2);
-    new Thread(() -> {
-      up.forEach(IoUtils.nop());
-      Stream.of(down1, down2).parallel().forEach(each -> each.accept(null));
-    }).start();
-    new Selector.Builder<String>(
-        "UT"
-    ).add(
-        TestUtils.<String>list("stdout", 100_000).stream(),
-        IoUtils.nop(),
-        true
-    ).add(
-        TestUtils.<String>list("stderr", 100_000).stream(),
-        System.err::println,
-        false
-    ).build(
-    ).stream().forEach(
-        System.out::println
-    );
-  }
-
   private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {
     return new Selector.Builder<String>(
         "UT"
@@ -167,14 +142,13 @@ public class SelectorTest extends TestUtils.TestBase {
       System.out.println("sleepAndReturn:start:" + Thread.currentThread().getId());
       if (Thread.currentThread().isInterrupted()) {
         System.out.println("sleepAndReturn:interrupted(1):" + Thread.currentThread().getId());
-        return value;
+        return true;
       }
-/*      try {
+      try {
         Thread.sleep(1);
       } catch (InterruptedException ignored) {
         System.out.println("sleepAndReturn:interrupted(2):" + Thread.currentThread().getId());
       }
-      */
       System.out.println("sleepAndReturn:end:" + Thread.currentThread().getId());
     }
     return value;

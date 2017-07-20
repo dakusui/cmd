@@ -8,8 +8,27 @@ import org.junit.runners.MethodSorters;
 
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.Cmd.cmd;
+
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class PipelinedCmdTest extends TestUtils.TestBase {
+  @Test
+  public void simplePipe() {
+    cmd(
+        "echo hello && echo world"
+    ).connectTo(
+        cmd(
+            "cat -n"
+        ).connectTo(
+            cmd("cat -n")
+        )
+    ).stream().map(
+        s -> String.format("<%s>", s)
+    ).forEach(
+        System.out::println
+    );
+  }
+
   /**
    * Shows flakiness 7/18/2017
    * <code>
@@ -38,17 +57,13 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
    * </code>
    */
   @Test(timeout = 5_000)
-  public void pipe() {
-    Cmd.cmd(
-        "echo hello && echo world"
-    ).connectTo(
-        Cmd.cmd("cat -n")
-    ).connectTo(
-        Cmd.cmd("sort -r")
-    ).connectTo(
-        Cmd.cmd("sed 's/hello/HELLO/'")
-    ).connectTo(
-        Cmd.cmd("sed -E 's/^ +//'")
+  public void complexPipe() {
+    cmd("echo hello && echo world").connectTo(
+        cmd("cat -n").connectTo(
+            cmd("sort -r").connectTo(
+                cmd("sed 's/hello/HELLO/'").connectTo(
+                    cmd("sed -E 's/^ +//'")
+                )))
     ).stream(
     ).map(
         s -> String.format("<%s>", s)
@@ -78,12 +93,11 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
     ).forEach(
         System.out::println
     );
-
   }
 
   @Test(timeout = 30_000)
   public void tee20K() {
-    Cmd.cmd(
+    cmd(
         "seq 1 20000"
     ).connectTo(
         Cmd.cat().pipeline(
@@ -104,7 +118,7 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
 
   @Test(timeout = 15_000)
   public void pipe10K() throws InterruptedException {
-    Cmd.cmd(
+    cmd(
         "seq 1 10000"
     ).connectTo(
         Cmd.cat().pipeline(
@@ -120,7 +134,7 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
 
   @Test(timeout = 15_000)
   public void pipe20K() throws InterruptedException {
-    Cmd.cmd(
+    cmd(
         "seq 1 20000"
     ).connectTo(
         Cmd.cat().pipeline(
@@ -136,7 +150,7 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
 
   @Test(timeout = 30_000)
   public void pipe100K() throws InterruptedException {
-    Cmd.cmd(
+    cmd(
         "seq 1 100000"
     ).connectTo(
         Cmd.cat().pipeline(
@@ -149,6 +163,4 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
         System.out::println
     );
   }
-
-
 }

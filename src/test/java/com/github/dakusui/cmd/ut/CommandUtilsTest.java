@@ -5,7 +5,6 @@ import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
 import com.github.dakusui.cmd.utils.TestUtils;
 import junit.framework.TestCase;
 import org.hamcrest.CoreMatchers;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -371,7 +370,7 @@ public class CommandUtilsTest {
   /**
    * This test is marked 'ignored' since resource/time consuming.
    */
-  @Ignore
+  //@Ignore
   @Test(timeout = 60000)
   public void givenCommandWriting100MdataToStdout$whenRunLocally$thenDataWrittenToStdout() throws Exception {
     LOGGER.info("test-18");

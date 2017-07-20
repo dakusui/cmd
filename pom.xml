@@ -76,14 +76,14 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
+        <testResources>
+            <testResource>
                 <directory>src/test/resources</directory>
                 <includes>
                     <include>log4j.xml</include>
                 </includes>
-            </resource>
-        </resources>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

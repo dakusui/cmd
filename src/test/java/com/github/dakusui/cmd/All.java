@@ -13,12 +13,12 @@ import org.junit.runners.Suite;
     CmdTest.class,
     CommandUtilsTest.class,
     IoUtilsTest.class,
+    LineReaderTest.class,
+    PipelinedCmdTest.class,
     SelectorTest.class,
     StreamableProcessTest.class,
     StreamableQueueTest.class,
-    PipelinedCmdTest.class,
     RingBufferedLineWriterTest.class,
-    LineReaderTest.class,
 })
 public class All {
 }

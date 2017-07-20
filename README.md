@@ -1,11 +1,14 @@
 # cmd
 
-A library for Java 8 to run a shell command using a to easily on Unix platforms. 
+A library for Java 8 to run a shell command easily on Unix platforms. 
 
 Creating a program that executes a shell command from Java is a tedious task but 
-there are a lot of pitfalls.
+there are a lot of pitfalls which we almost always fall whenever we write a program 
+to use ```Runtime#exec()`` method.
 
-This library does it on behalf of you. To run '''echo hello''', you can simply do
+This library does it well on behalf of you. 
+
+To run '''echo hello''', you can simply do either
 
 ```java
 
@@ -13,6 +16,8 @@ This library does it on behalf of you. To run '''echo hello''', you can simply d
     public void echoLocally() { 
       Cmd.cmd("echo hello").stream().forEach(System.out::println);
     }
+
+    // or
 
     public void echoLocallyWithExplicitShell() { 
       Cmd.cmd(Shell.local(), "echo hello").stream().forEach(System.out::println);
@@ -70,16 +75,12 @@ structured and programmable.
 
     public class PipeExample {
       public void pipe() {
-        Cmd.cmd(
-            "echo hello && echo world"
-        ).connectTo(
-            Cmd.cmd("cat -n")
-        ).connectTo(
-            Cmd.cmd("sort -r")
-        ).connectTo(
-            Cmd.cmd("sed 's/hello/HELLO/'")
-        ).connectTo(
-            Cmd.cmd("sed -E 's/^ +//'")
+        Cmd.cmd("echo hello && echo world").connectTo(
+            Cmd.cmd("cat -n").connectTo(
+                Cmd.cmd("sort -r").connectTo(
+                    Cmd.cmd("sed 's/hello/HELLO/'").connectTo(
+                        Cmd.cmd("sed -E 's/^ +//'")
+                    )))
         ).stream(
         ).map(
             s -> String.format("<%s>", s)
@@ -95,51 +96,52 @@ The example above will print something like following.
 
 ```
 
-<     1	hello>
-<hello>
-<     2	world>
-<world>
-<HELLO>
-<world>
-<world>
-<hello>
-
+<2	world>
+<1	HELLO>
 ```
+
 ## Tee
+You can fork an output from a command into some like a unix command ```tee```.
+
 ```java
 
-    Cmd.cmd(
-        Shell.local(),
-        "seq 1 10000"
-    ).tee(
-    ).to(
-        in -> Cmd.cmd(
-            Shell.local(),
-            "cat -n",
-            in
-        ).to(
-        ),
-        s -> System.out.println("LEFT:" + s)
-    ).to(
-        in -> Cmd.cmd(
-            Shell.local(),
-            "cat -n",
-            in
-        ).to(),
-        s -> System.out.println("RIGHT:" + s)
-    ).run();
-
+    public class TeeExample {
+      public void tee10K() {
+        Cmd.cmd(
+            "seq 1 10000"
+        ).readFrom(
+            () -> Stream.of((String) null)
+        ).connectTo(
+            Cmd.cat().pipeline(
+                stream -> stream.map(
+                    s -> "LEFT:" + s
+                )
+            ),
+            Cmd.cat().pipeline(
+                stream -> stream.map(
+                    s -> "RIGHT:" + s
+                )
+            )
+        ).stream(
+        ).forEach(
+            System.out::println
+        );
+      }
+    }
+    
 ```
 
 ## Compatibility with ```commandrunner``` library
-By using ```CommandUtils```, you can replace your dependency on ```commandrunner```[[0]] library.
+This library is designed to be compatible with ```commandrunner```[[0]] library.
+By using ```CommandUtils```, you can replace your dependency on ```commandrunner```.
 
 ```java
 
-
-  public void runLocal_echo_hello() throws Exception {
-    CommandResult result = CommandUtils.runLocal("echo hello");
-    ...
+  public class CommandUtilsExample {
+      public void runLocal_echo_hello() throws Exception {
+        CommandResult result = CommandUtils.runLocal("echo hello");
+        // ...
+      }
   }
 
 ```
