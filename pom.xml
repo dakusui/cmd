@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>cmd</name>
-    <url>https://github.com/dakusui/cmdstreamer</url>
+    <url>https://github.com/dakusui/cmd</url>
 
     <licenses>
         <license>
@@ -21,12 +21,12 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git://github.com/dakusui/cmdstreamer.git
+        <connection>scm:git:git://github.com/dakusui/cmd.git
         </connection>
         <developerConnection>
-            scm:git:git@github.com:dakusui/cmdstreamer.git
+            scm:git:git@github.com:dakusui/cmd.git
         </developerConnection>
-        <url>http://github.com/dakusui/cmdstreamer</url>
+        <url>http://github.com/dakusui/cmd</url>
         <tag>HEAD</tag>
     </scm>
 
