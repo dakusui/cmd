@@ -60,7 +60,7 @@ Enjoy.
   <dependency>
     <groupId>com.github.dakusui</groupId>
     <artifactId>cmdstreamer</artifactId>
-    <version>[0.9.0,)</version>
+    <version>[0.10.0,)</version>
   </dependency>
 ```
 
@@ -71,15 +71,25 @@ You can pipe commands not only using ```|``` in command line string but also usi
 ```connectTo``` method. This allows you to make your command line string 
 structured and programmable.
 
+```bash
+
+$ sh -c 'echo hello && echo world' | cat -n | sort -r | sed 's/hello/HELLO/' | sed -E 's/^ +//'
+
+```
+
+A command line above can be written as following with ```cmd```. 
+
 ```java
+
+    import static com.github.dakusui.cmd.Cmd.cmd;
 
     public class PipeExample {
       public void pipe() {
-        Cmd.cmd("echo hello && echo world").connectTo(
-            Cmd.cmd("cat -n").connectTo(
-                Cmd.cmd("sort -r").connectTo(
-                    Cmd.cmd("sed 's/hello/HELLO/'").connectTo(
-                        Cmd.cmd("sed -E 's/^ +//'")
+        cmd("echo hello && echo world").connect(
+            cmd("cat -n").connect(
+                cmd("sort -r").connect(
+                    cmd("sed 's/hello/HELLO/'").connect(
+                        cmd("sed -E 's/^ +//'")
                     )))
         ).stream(
         ).map(
@@ -100,24 +110,51 @@ The example above will print something like following.
 <1	HELLO>
 ```
 
-## Tee
-You can fork an output from a command into some like a unix command ```tee```.
+This can be written in a following way, too.
 
 ```java
 
+    import static com.github.dakusui.cmd.Cmd.cmd;
+
+    public class PipeExample {
+      public void pipedCommands() {
+        cmd("echo hello && echo world").connect(
+            cmd("cat -n | sort -r | sed 's/hello/HELLO/' | sed -E 's/^ +//'")
+        ).stream(
+        ).map(
+            s -> String.format("<%s>", s)
+        ).forEach(
+            System.out::println
+        );
+      }
+    }
+
+```
+
+## Tee
+You can ```tee``` an output from a command into other commands like a unix 
+command of the name.
+
+```java
+
+
+    import static com.github.dakusui.cmd.Cmd.cat;
+    import static com.github.dakusui.cmd.Cmd.cmd;
+
     public class TeeExample {
       public void tee10K() {
-        Cmd.cmd(
+        cmd(
             "seq 1 10000"
         ).readFrom(
             () -> Stream.of((String) null)
-        ).connectTo(
-            Cmd.cat().pipeline(
+        ).connect(
+            cat().pipeline(
                 stream -> stream.map(
                     s -> "LEFT:" + s
                 )
-            ),
-            Cmd.cat().pipeline(
+            )
+        ).connect(
+            cat().pipeline(
                 stream -> stream.map(
                     s -> "RIGHT:" + s
                 )
@@ -129,6 +166,19 @@ You can fork an output from a command into some like a unix command ```tee```.
       }
     }
     
+```
+
+This will print following output to ```stdout```.
+
+```
+RIGHT:1
+RIGHT:2
+LEFT:1
+RIGHT:3
+LEFT:2
+RIGHT:4
+RIGHT:5
+...
 ```
 
 ## Compatibility with ```commandrunner``` library

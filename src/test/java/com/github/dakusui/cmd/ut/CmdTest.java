@@ -34,8 +34,9 @@ public class CmdTest extends TestUtils.TestBase {
         "cat"
     ).readFrom(
         () -> Stream.of("Hello", "World")
-    ).connectTo(
-        cat().pipeline(stream -> stream.map(String::toUpperCase)),
+    ).connect(
+        cat().pipeline(stream -> stream.map(String::toUpperCase))
+    ).connect(
         cat().pipeline(stream -> stream.map(String::toLowerCase))
     ).stream(
     ).peek(
@@ -247,7 +248,7 @@ public class CmdTest extends TestUtils.TestBase {
         "echo Hello && echo world"
     ).readFrom(
         Stream::empty
-    ).connectTo(cmd(
+    ).connect(cmd(
         "cat -n"
     )).stream(
     ).peek(
@@ -285,10 +286,11 @@ public class CmdTest extends TestUtils.TestBase {
         "echo Hello && echo world"
     ).readFrom(
         Stream::empty
-    ).connectTo(
+    ).connect(
         cmd(
             "cat -n"
-        ),
+        )
+    ).connect(
         cmd(
             "cat -n"
         )
@@ -335,10 +337,10 @@ public class CmdTest extends TestUtils.TestBase {
   public void streamExample5() {
     cmd(
         "echo world && echo Hello"
-    ).connectTo(
+    ).connect(
         cmd(
             "sort"
-        ).connectTo(cmd(
+        ).connect(cmd(
             "cat -n"
         ))
     ).readFrom(
@@ -378,13 +380,14 @@ public class CmdTest extends TestUtils.TestBase {
         "echo world && echo Hello"
     ).readFrom(
         Stream::empty
-    ).connectTo(
+    ).connect(
         cmd(
             "cat"
-        ),
+        )
+    ).connect(
         cmd(
             "sort"
-        ).connectTo(cmd(
+        ).connect(cmd(
             "cat -n"
         ))
     ).stream(
@@ -463,7 +466,7 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"
-    ).connectTo(
+    ).connect(
         cmd("cat -n")
     ).stream(
     ).peek(
@@ -480,7 +483,7 @@ public class CmdTest extends TestUtils.TestBase {
       System.out.println("=== " + i + " ===");
       Cmd cmd = cmd(
           "unknownCommand hello"
-      ).connectTo(
+      ).connect(
           cmd("cat -n")
       );
       if (!TestUtils.terminatesIn(
@@ -500,7 +503,7 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample3() {
     cmd(
         "echo hello"
-    ).connectTo(
+    ).connect(
         cmd("unknownCommand -n")
     ).stream(
     ).peek(
@@ -514,8 +517,9 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample4() {
     cmd(
         "echo hello"
-    ).connectTo(
-        cmd("cat -n"),
+    ).connect(
+        cmd("cat -n")
+    ).connect(
         cmd("unknownCommand -n")
     ).stream(
     ).peek(
@@ -529,8 +533,8 @@ public class CmdTest extends TestUtils.TestBase {
   public void failingStreamExample5() {
     cmd(
         "echo hello"
-    ).connectTo(
-        cmd("unknownCommand -n").connectTo(
+    ).connect(
+        cmd("unknownCommand -n").connect(
             cmd("cat -n")
         )
     ).stream(

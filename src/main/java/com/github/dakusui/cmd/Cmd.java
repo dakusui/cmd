@@ -64,7 +64,7 @@ public interface Cmd {
     return builder().with(shell).command(commandLine).build();
   }
 
-  Cmd connectTo(Cmd... cmds);
+  Cmd connect(Cmd cmd);
 
   /**
    * Returns a {@code Shell} object with which a command represented by this object
@@ -247,9 +247,9 @@ public interface Cmd {
     }
 
     @Override
-    synchronized public Cmd connectTo(Cmd... cmds) {
+    synchronized public Cmd connect(Cmd cmd) {
       requireState(State.PREPARING);
-      this.downstreams.addAll(Arrays.asList(cmds));
+      this.downstreams.add(cmd);
       return this;
     }
 

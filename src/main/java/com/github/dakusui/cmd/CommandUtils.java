@@ -68,11 +68,11 @@ public enum CommandUtils {
         ).transformStdout(
             s -> s
         ).consumeStdout(
-            ((Consumer<String>) (stdout::write)).andThen(stdouterr::write).andThen(System.err::println)
+            ((Consumer<String>) (stdout::write)).andThen(stdouterr::write)
         ).transformStderr(
             s -> s
         ).consumeStderr(
-            ((Consumer<String>) (stderr::write)).andThen(stdouterr::write).andThen(System.err::println)
+            ((Consumer<String>) (stderr::write)).andThen(stdouterr::write)
         ).build();
 
     final Callable<CommandResult> callable = () -> {

@@ -6,27 +6,36 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.Cmd.cat;
 import static com.github.dakusui.cmd.Cmd.cmd;
+import static org.junit.Assert.assertEquals;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class PipelinedCmdTest extends TestUtils.TestBase {
   @Test
   public void simplePipe() {
+    AtomicInteger c = new AtomicInteger(0);
+
     cmd(
         "echo hello && echo world"
-    ).connectTo(
+    ).connect(
         cmd(
             "cat -n"
-        ).connectTo(
+        ).connect(
             cmd("cat -n")
         )
     ).stream().map(
         s -> String.format("<%s>", s)
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.out::println
     );
+
+    assertEquals(2, c.get());
   }
 
   /**
@@ -58,109 +67,165 @@ public class PipelinedCmdTest extends TestUtils.TestBase {
    */
   @Test(timeout = 5_000)
   public void complexPipe() {
-    cmd("echo hello && echo world").connectTo(
-        cmd("cat -n").connectTo(
-            cmd("sort -r").connectTo(
-                cmd("sed 's/hello/HELLO/'").connectTo(
+    AtomicInteger c = new AtomicInteger(0);
+
+    cmd("echo hello && echo world").connect(
+        cmd("cat -n").connect(
+            cmd("sort -r").connect(
+                cmd("sed 's/hello/HELLO/'").connect(
                     cmd("sed -E 's/^ +//'")
                 )))
     ).stream(
     ).map(
         s -> String.format("<%s>", s)
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.out::println
     );
+
+    assertEquals(2, c.get());
+  }
+
+  @Test(timeout = 5_000)
+  public void pipedCommands() {
+    AtomicInteger c = new AtomicInteger(0);
+
+    cmd("echo hello && echo world").connect(
+        cmd("cat -n | sort -r | sed 's/hello/HELLO/' | sed -E 's/^ +//'")
+    ).stream(
+    ).map(
+        s -> String.format("<%s>", s)
+    ).peek(
+        s -> c.getAndIncrement()
+    ).forEach(
+        System.out::println
+    );
+
+    assertEquals(2, c.get());
   }
 
   @Test(timeout = 15_000)
   public void tee10K() {
+    AtomicInteger c = new AtomicInteger(0);
+
     Cmd.cmd(
         "seq 1 10000"
     ).readFrom(
         () -> Stream.of((String) null)
-    ).connectTo(
-        Cmd.cat().pipeline(
+    ).connect(
+        cat().pipeline(
             stream -> stream.map(
                 s -> "LEFT:" + s
             )
-        ),
-        Cmd.cat().pipeline(
+        )
+    ).connect(
+        cat().pipeline(
             stream -> stream.map(
                 s -> "RIGHT:" + s
             )
         )
     ).stream(
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.out::println
     );
+
+    assertEquals(20_000, c.get());
   }
 
   @Test(timeout = 30_000)
   public void tee20K() {
+    AtomicInteger c = new AtomicInteger(0);
+
     cmd(
         "seq 1 20000"
-    ).connectTo(
-        Cmd.cat().pipeline(
+    ).connect(
+        cat().pipeline(
             stream -> stream.map(
                 s -> "LEFT:" + s
             )
-        ),
-        Cmd.cat().pipeline(
+        )
+    ).connect(
+        cat().pipeline(
             stream -> stream.map(
                 s -> "RIGHT:" + s
             )
         )
     ).stream(
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.out::println
     );
+
+    assertEquals(40_000, c.get());
   }
 
   @Test(timeout = 15_000)
   public void pipe10K() throws InterruptedException {
+    AtomicInteger c = new AtomicInteger(0);
+
     cmd(
         "seq 1 10000"
-    ).connectTo(
-        Cmd.cat().pipeline(
+    ).connect(
+        cat().pipeline(
             st -> st.map(
                 s -> "DOWN:" + s
             )
         )
     ).stream(
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.out::println
     );
+
+    assertEquals(10000, c.get());
   }
 
   @Test(timeout = 15_000)
   public void pipe20K() throws InterruptedException {
+    AtomicInteger c = new AtomicInteger(0);
+
     cmd(
         "seq 1 20000"
-    ).connectTo(
-        Cmd.cat().pipeline(
+    ).connect(
+        cat().pipeline(
             st -> st.map(
                 s -> "DOWN:" + s
             )
         )
     ).stream(
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.err::println
     );
+
+    assertEquals(20_000, c.get());
   }
 
   @Test(timeout = 30_000)
   public void pipe100K() throws InterruptedException {
+    AtomicInteger c = new AtomicInteger(0);
+
     cmd(
         "seq 1 100000"
-    ).connectTo(
-        Cmd.cat().pipeline(
+    ).connect(
+        cat().pipeline(
             st -> st.map(
                 s -> "DOWN:" + s
             )
         )
     ).stream(
+    ).peek(
+        s -> c.getAndIncrement()
     ).forEach(
         System.out::println
     );
+
+    assertEquals(100000, c.get());
   }
 }
