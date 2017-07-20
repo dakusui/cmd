@@ -1,6 +1,5 @@
-package com.github.dakusui.cmd.ut;
+package com.github.dakusui.cmd.compat;
 
-import com.github.dakusui.cmd.core.Tee;
 import com.github.dakusui.cmd.utils.TestUtils;
 import com.github.dakusui.jcunit8.factorspace.Parameter;
 import com.github.dakusui.jcunit8.runners.junit4.JCUnit8;

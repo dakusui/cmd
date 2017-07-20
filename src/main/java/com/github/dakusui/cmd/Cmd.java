@@ -13,7 +13,6 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
@@ -24,13 +23,7 @@ import static com.github.dakusui.cmd.core.IoUtils.nop;
 import static java.util.Objects.requireNonNull;
 
 public interface Cmd {
-  Object SENTINEL = new Object() {
-    @Override
-    public String toString() {
-      return "SENTINEL";
-    }
-  };
-  Logger LOGGER   = LoggerFactory.getLogger(Cmd.class);
+  Logger LOGGER = LoggerFactory.getLogger(Cmd.class);
 
   static Builder builder() {
     return new Builder(
@@ -211,7 +204,6 @@ public interface Cmd {
     private final List<Cmd>                                downstreams;
     private       State                                    state;
     private       StreamableProcess                        process;
-    private       ExecutorService                          threadPool;
     private Supplier<Stream<String>> stdin = null;
 
     private Impl(Shell shell, String command, IntPredicate exitValueChecker, Function<Stream<String>, Stream<String>> inputTransformer, Function<Stream<String>, Stream<String>> stdoutTransformer, Consumer<String> stdoutConsumer, Function<Stream<String>, Stream<String>> stderrTransformer, Consumer<String> stderrConsumer, Charset charset) {
@@ -272,12 +264,12 @@ public interface Cmd {
       this.state = State.RUNNING;
       Stream<String> ret = Stream.concat(
           process.stream(),
-          Stream.of(Cmd.SENTINEL)
+          Stream.of(IoUtils.SENTINEL)
       ).peek(
           s -> LOGGER.trace("BEFORE:{}:{}", this, s)
       ).filter(
           o -> {
-            if (o == Cmd.SENTINEL) {
+            if (o == IoUtils.SENTINEL) {
               close();
               ////
               // A sentinel shouldn't be passed to following stages.
@@ -300,50 +292,72 @@ public interface Cmd {
           o -> (String) o
       );
       if (!downstreams.isEmpty()) {
-        startDraining(ret, downstreams);
-        Selector.Builder<String> builder = new Selector.Builder<>();
+        if (downstreams.size() > 1)
+          ret = ret.parallel();
+        for (Cmd each : downstreams) {
+          Supplier<Stream<String>> stdin = each.stdin();
+          if (stdin instanceof StreamableQueue)
+            //noinspection unchecked
+            ret = ret.peek((Consumer<? super String>) stdin);
+        }
+        Stream<String> up = ret;
+        Selector.Builder<String> builder = new Selector.Builder<String>(
+            String.format("Cmd:%s", this)
+        ).add(
+            Stream.concat(
+                up,
+                Stream.of((String) null
+                )
+            ).peek(
+                (String s) -> {
+                  if (s == null) {
+                    //noinspection unchecked
+                    downstreams.stream().map(
+                        Cmd::stdin
+                    ).filter(
+                        i -> i instanceof Consumer
+                    ).map(
+                        Consumer.class::cast
+                    ).forEach(
+                        // Close stream connected to the consumer by sending
+                        // null
+                        (Consumer c) -> c.accept(null)
+                    );
+                  }
+                }
+            ),
+            nop(),
+            false
+        );
         downstreams.forEach(
-            eachDownstream -> builder.add(
-                eachDownstream.stream(),
-                IoUtils.<String>nop(),
+            each -> builder.add(
+                each.stream(),
+                nop(),
                 true
             )
         );
         ret = builder.build().stream();
-      }
-      LOGGER.info("END:{}", this);
-      return ret.peek(
-          s -> LOGGER.trace("AFTER:{}:{}", this, s)
-      );
-    }
-
-    private void startDraining(Stream<String> from, List<Cmd> to) {
-      for (Cmd eachInDownstreams : to) {
-        Supplier<Stream<String>> stdinOfEach = eachInDownstreams.stdin();
-        if (stdinOfEach instanceof StreamableQueue) {
+        /*
+        new Thread(() -> {
+          up.forEach(IoUtils.<String>nop().andThen(LOGGER::info));
           //noinspection unchecked
-          from = from.peek((Consumer<String>) stdinOfEach);
-        }
+          downstreams.stream().map(
+              Cmd::stdin
+          ).filter(
+              i -> i instanceof Consumer
+          ).map(
+              Consumer.class::cast
+          ).forEach(
+              // Close stream connected to the consumer by sending
+              // null
+              (Consumer c) -> c.accept(null)
+          );
+        }).start();
+        */
       }
-      Stream<String> up = from;
-      new Thread(() -> {
-        if (to.size() > 1)
-          up.parallel().forEach(IoUtils.nop());
-        else
-          up.forEach(IoUtils.nop());
-        //noinspection unchecked
-        to.stream(
-        ).map(
-            Cmd::stdin
-        ).filter(
-            down -> down instanceof StreamableQueue
-        ).map(
-            Consumer.class::cast
-        ).parallel(
-        ).forEach(
-            eachDownstream -> eachDownstream.accept(null)
-        );
-      }).start();
+      return ret.peek(
+          s -> LOGGER.trace("INFO:{}:{}", this, s)
+      );
     }
 
     @Override

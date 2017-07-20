@@ -1,6 +1,6 @@
-package com.github.dakusui.cmd.ut;
+package com.github.dakusui.cmd.compat;
 
-import com.github.dakusui.cmd.core.Tee;
+import com.github.dakusui.cmd.compat.Tee;
 import org.junit.Test;
 
 import java.util.LinkedList;

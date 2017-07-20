@@ -22,7 +22,7 @@ public interface Selector<T> {
    *
    */
   static <T> Stream<T> select(List<Stream<T>> streams) {
-    return new Selector.Builder<T>() {{
+    return new Selector.Builder<T>("Selector.select") {{
       streams.forEach(each -> add(each, IoUtils.nop(), true));
     }}.build().stream();
   }
@@ -40,11 +40,14 @@ public interface Selector<T> {
       }
     }
 
+    private final String name;
+
     private final Map<Stream<T>, Consumer<T>> consumers;
     private final Map<Stream<T>, Boolean>     toBePassed;
 
 
-    public Builder() {
+    public Builder(String name) {
+      this.name = name;
       this.consumers = new LinkedHashMap<>();
       this.toBePassed = new LinkedHashMap<>();
     }
@@ -66,8 +69,10 @@ public interface Selector<T> {
     }
 
     public Selector<T> build() {
-      return () ->
-          consumers.keySet(
+      return new Selector<T>() {
+        @Override
+        public Stream<T> stream() {
+          return consumers.keySet(
           ).stream(
           ).parallel(
           ).flatMap(
@@ -75,7 +80,9 @@ public interface Selector<T> {
                   t -> new Record<>(t, consumers.get(stream), toBePassed.get(stream))
               )
           ).peek(
-              r -> r.consumer.accept(r.data)
+              r -> r
+                  .consumer
+                  .accept(r.data)
           ).filter(
               r -> r.passToDownstream
           ).map(
@@ -85,6 +92,13 @@ public interface Selector<T> {
                 consumers.keySet().forEach(Stream::close);
               }
           );
+        }
+
+        @Override
+        public String toString() {
+          return name;
+        }
+      };
     }
   }
 }

@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd.core;
+package com.github.dakusui.cmd.compat;
 
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;

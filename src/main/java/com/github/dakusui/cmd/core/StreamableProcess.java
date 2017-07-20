@@ -31,7 +31,7 @@ public class StreamableProcess extends Process {
     this.config = requireNonNull(config);
     this.stdout = IoUtils.toStream(this.getInputStream(), config.charset());
     this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset());
-    this.stdin = IoUtils.toConsumer(this.getOutputStream(), config.charset());
+    this.stdin = IoUtils.flowControlValve(IoUtils.toConsumer(this.getOutputStream(), config.charset()), 100);
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
     this.shell = shell;
     this.command = command;
@@ -145,8 +145,11 @@ public class StreamableProcess extends Process {
   }
 
   private static Selector<String> createSelector(Config config, Consumer<String> stdin, Stream<String> stdout, Stream<String> stderr) {
-    new Thread(() -> config.stdin().forEach(IoUtils.flowControlValve(stdin, 100))).start();
+    new Thread(() -> {
+      config.stdin().forEach(IoUtils.flowControlValve(stdin, 100));
+    }).start();
     return new Selector.Builder<String>(
+        String.format("StreamableProcess:%s", Thread.currentThread().getId())
         //    ).add(
         //        config.stdin(),
         //        stdin,

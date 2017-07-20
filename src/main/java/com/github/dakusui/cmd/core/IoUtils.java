@@ -16,6 +16,17 @@ public enum IoUtils {
   ;
 
   /**
+   * A sentinel, that lets consumers know end of a stream,  used in some classes
+   * such as {@code Cmd} and {@code StreamableQueue} in this library.
+   */
+  public static final Object SENTINEL = new Object() {
+    @Override
+    public String toString() {
+      return "SENTINEL";
+    }
+  };
+
+  /**
    * Returns a consumer which writes given string objects to an {@code OutputStream}
    * {@code os} using a {@code Charset} {@code charset}.
    * <p>
@@ -41,14 +52,15 @@ public enum IoUtils {
 
   public static <T> Consumer<T> flowControlValve(Consumer<T> consumer, int queueSize) {
     return new StreamableQueue<T>(queueSize) {{
-      new Thread(() -> get()
-          .forEach(consumer)).start();
+      new Thread(() -> Stream.concat(
+          get(), Stream.of((T) null)
+      ).forEach(consumer)).start();
     }};
   }
 
   /**
    * Returns a stream of strings that reads values from an {@code InputStream} {@code is}
-   * using a {@code CharSet} {@code charset}
+   * using a {@code Charset} {@code charset}
    *
    * @param is      An input stream from which values are read by returned {@code Stream<String>}.
    * @param charset A charset with which values are read from {@code is}.

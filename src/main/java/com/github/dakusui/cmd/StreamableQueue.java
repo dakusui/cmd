@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd;
 
+import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,13 +32,13 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
           @Override
           public synchronized boolean hasNext() {
             readNextIfNotYet();
-            return next != Cmd.SENTINEL;
+            return next != IoUtils.SENTINEL;
           }
 
           @Override
           public synchronized E next() {
             readNextIfNotYet();
-            if (next == Cmd.SENTINEL)
+            if (next == IoUtils.SENTINEL)
               throw new NoSuchElementException();
             try {
               //noinspection unchecked
@@ -80,6 +81,7 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
   }
 
   private void offer(Object e) {
+    LOGGER.trace("e={}", e);
     while (!queue.offer(e)) {
       try {
         queue.wait();
@@ -90,13 +92,13 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
   }
 
   private void close() {
-    LOGGER.debug("BEGIN:close:{}", this);
+    LOGGER.debug("BEGIN:{}", this);
     synchronized (queue) {
       if (closed)
         return;
-      offer(Cmd.SENTINEL);
+      offer(IoUtils.SENTINEL);
       closed = true;
     }
-    LOGGER.debug("END:close:{}", this);
+    LOGGER.debug("END:{}", this);
   }
 }

@@ -3,6 +3,7 @@ package com.github.dakusui.cmd.ut;
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
+import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 
@@ -458,7 +459,7 @@ public class CmdTest extends TestUtils.TestBase {
     );
   }
 
-  @Test(/*timeout = 5_000,*/ /*expected = RuntimeException.class*/)
+  @Test(timeout = 5_000, expected = UnexpectedExitValueException.class)
   public void failingStreamExample2() {
     cmd(
         "unknownCommand hello"

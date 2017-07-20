@@ -4,13 +4,16 @@ import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.core.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.Charset;
 import java.util.stream.Stream;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class StreamableProcessTest extends TestUtils.TestBase {
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamableProcessTest.class);
 
@@ -56,7 +59,7 @@ public class StreamableProcessTest extends TestUtils.TestBase {
     );
   }
 
-  @Test(timeout = 20_000)
+  @Test(timeout = 40_000)
   public void givenVeryLargeDataPipedToCat$whenRunLocally$thenMessagePrinted() {
     new StreamableProcess(
         localShell(),
@@ -71,7 +74,7 @@ public class StreamableProcessTest extends TestUtils.TestBase {
   }
 
   @Test(timeout = 20_000)
-  public void givenLargeDataPipedToCat$whenRunLocallyWithCascaded$thenMessagePrinted() {
+  public void givenDataPipedToCat$whenRunLocallyWithCascaded$thenMessagePrinted() {
     new StreamableProcess(
         localShell(),
         "cat",
@@ -93,6 +96,31 @@ public class StreamableProcessTest extends TestUtils.TestBase {
         LOGGER::info
     );
   }
+
+  @Test(timeout = 20_000)
+  public void givenLargeDataPipedToCat$whenRunLocallyWithCascaded$thenMessagePrinted() {
+    new StreamableProcess(
+        localShell(),
+        "cat",
+        config(
+            new StreamableProcess(
+                localShell(),
+                "cat",
+                config(
+                    TestUtils.list("data", 20_000).stream().peek(
+                        LOGGER::info
+                    )
+                )
+            ).stream().peek(
+                LOGGER::info
+            )
+        )
+    ).stream(
+    ).forEach(
+        LOGGER::info
+    );
+  }
+
 
   private Shell localShell() {
     return new Shell.Builder.ForLocal().build();

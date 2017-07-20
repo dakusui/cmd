@@ -94,6 +94,7 @@ public class SelectorTest extends TestUtils.TestBase {
         TestUtils.<String>list("C", 100_000).stream()
     ).forEach(System.out::println);
   }
+
   @Test
   public void select100Kdata2() {
     StreamableQueue<String> down = new StreamableQueue<>(100);
@@ -102,6 +103,7 @@ public class SelectorTest extends TestUtils.TestBase {
       up.forEach(IoUtils.nop());
     }).start();
     new Selector.Builder<String>(
+        "UT"
     ).add(
         TestUtils.<String>list("stdout", 100_000).stream(),
         IoUtils.nop(),
@@ -126,6 +128,7 @@ public class SelectorTest extends TestUtils.TestBase {
       Stream.of(down1, down2).parallel().forEach(each -> each.accept(null));
     }).start();
     new Selector.Builder<String>(
+        "UT"
     ).add(
         TestUtils.<String>list("stdout", 100_000).stream(),
         IoUtils.nop(),
@@ -141,15 +144,22 @@ public class SelectorTest extends TestUtils.TestBase {
   }
 
   private Selector<String> createSelector(int sizeA, int sizeB, int sizeC) {
-    return new Selector.Builder<String>()
-        .add(TestUtils.list("A", sizeA).stream().filter(s -> sleepAndReturn(true)), s -> {
-        }, true)
-        .add(TestUtils.list("B", sizeB).stream().filter(s -> sleepAndReturn(true)), s -> {
+    return new Selector.Builder<String>(
+        "UT"
 
-        }, true)
-        .add(TestUtils.list("C", sizeC).stream().filter(s -> sleepAndReturn(false)), s -> {
-        }, true)
-        .build();
+    ).add(
+        TestUtils.list("A", sizeA).stream().filter(s -> sleepAndReturn(true)),
+        IoUtils.nop(),
+        true
+    ).add(
+        TestUtils.list("B", sizeB).stream().filter(s -> sleepAndReturn(true)),
+        IoUtils.nop(),
+        true
+    ).add(
+        TestUtils.list("C", sizeC).stream().filter(s -> sleepAndReturn(false)),
+        IoUtils.nop(),
+        true
+    ).build();
   }
 
   private static boolean sleepAndReturn(boolean value) {

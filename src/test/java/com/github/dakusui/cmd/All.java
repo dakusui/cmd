@@ -16,8 +16,7 @@ import org.junit.runners.Suite;
     SelectorTest.class,
     StreamableProcessTest.class,
     StreamableQueueTest.class,
-    TeeTest.class,
-    TeeTimeoutTest.class,
+    PipelinedCmdTest.class,
     RingBufferedLineWriterTest.class,
     LineReaderTest.class,
 })
