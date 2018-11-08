@@ -3,9 +3,17 @@ package com.github.dakusui.cmd.core;
 import com.github.dakusui.cmd.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -136,6 +144,32 @@ public enum IoUtils {
         }
       }
     };
+  }
+
+  public interface RingBuffer<E> {
+    void write(E elem);
+
+    Stream<E> stream();
+
+    static <E> RingBuffer<E> create(int size) {
+      return new RingBuffer<E>() {
+        int cur = 0;
+        List<E> buffer = new ArrayList<>(size);
+
+        @Override
+        public void write(E elem) {
+          this.buffer.add(cur++, elem);
+          cur %= size;
+        }
+
+        @Override
+        public synchronized Stream<E> stream() {
+          return Stream.concat(
+              this.buffer.subList(cur, this.buffer.size()).stream(),
+              this.buffer.subList(0, cur).stream());
+        }
+      };
+    }
   }
 
   private enum IteratorState {

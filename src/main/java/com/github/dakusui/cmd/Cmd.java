@@ -163,7 +163,18 @@ public interface Cmd {
     }
 
     public Builder command(String command) {
-      Supplier<String> commandSupplier = () -> requireNonNull(command);
+      requireNonNull(command);
+      Supplier<String> commandSupplier = new Supplier<String>() {
+        @Override
+        public String get() {
+          return command;
+        }
+
+        @Override
+        public String toString() {
+          return command;
+        }
+      };
       return this.command(commandSupplier);
     }
 
@@ -232,9 +243,10 @@ public interface Cmd {
     private final List<Cmd>                                downstreams;
     private       State                                    state;
     private       StreamableProcess                        process;
-    private       Supplier<Stream<String>>                 stdin = null;
+    private       Supplier<Stream<String>>                 stdin      = null;
     private final File                                     cwd;
     private final Map<String, String>                      env;
+    private final IoUtils.RingBuffer<String>               ringBuffer = IoUtils.RingBuffer.create(3);
 
     private Impl(
         Shell shell,
@@ -257,9 +269,17 @@ public interface Cmd {
       this.charset = requireNonNull(charset);
       this.inputTransformer = requireNonNull(inputTransformer);
       this.stdoutTransformer = requireNonNull(stdoutTransformer);
-      this.stdoutConsumer = requireNonNull(stdoutConsumer);
+      this.stdoutConsumer = ((Consumer<String>) s -> {
+        synchronized (ringBuffer) {
+          ringBuffer.write(String.format("STDOUT:%s", s));
+        }
+      }).andThen(requireNonNull(stdoutConsumer));
       this.stderrTransformer = requireNonNull(stderrTransformer);
-      this.stderrConsumer = requireNonNull(stderrConsumer);
+      this.stderrConsumer = ((Consumer<String>) s -> {
+        synchronized (ringBuffer) {
+          ringBuffer.write(String.format("STDERR:%s", s));
+        }
+      }).andThen(requireNonNull(stderrConsumer));
       this.downstreams = new LinkedList<>();
       this.state = State.PREPARING;
     }
@@ -381,27 +401,8 @@ public interface Cmd {
             )
         );
         ret = builder.build().stream();
-        /*
-        new Thread(() -> {
-          up.forEach(IoUtils.<String>nop().andThen(LOGGER::info));
-          //noinspection unchecked
-          downstreams.stream().map(
-              Cmd::stdin
-          ).filter(
-              i -> i instanceof Consumer
-          ).map(
-              Consumer.class::cast
-          ).forEach(
-              // Close stream connected to the consumer by sending
-              // null
-              (Consumer c) -> c.accept(null)
-          );
-        }).start();
-        */
       }
-      return ret.peek(
-          s -> LOGGER.trace("INFO:{}:{}", this, s)
-      );
+      return ret.peek(s -> LOGGER.trace("INFO:{}:{}", this, s));
     }
 
     @Override
@@ -437,7 +438,10 @@ public interface Cmd {
 
     @Override
     public String toString() {
-      return String.format("%s '%s'", this.shell, this.command);
+      return String.format("%s '%s':...%s",
+          this.shell,
+          this.command,
+          this.ringBuffer.stream().collect(Collectors.joining(String.format("%n"))));
     }
 
     public void dump() {

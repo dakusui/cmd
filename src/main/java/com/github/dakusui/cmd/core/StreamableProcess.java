@@ -31,8 +31,8 @@ public class StreamableProcess extends Process {
   public StreamableProcess(Shell shell, String command, File cwd, Map<String, String> env, Config config) {
     this.process = createProcess(shell, command, cwd, env);
     this.config = requireNonNull(config);
-    this.stdout = IoUtils.toStream(this.getInputStream(), config.charset());
-    this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset());
+    this.stdout = IoUtils.toStream(this.getInputStream(), config.charset()).peek(config.stdoutConsumer());
+    this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset()).peek(config.stderrConsumer());
     this.stdin = IoUtils.flowControlValve(IoUtils.toConsumer(this.getOutputStream(), config.charset()), 100);
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
     this.shell = shell;

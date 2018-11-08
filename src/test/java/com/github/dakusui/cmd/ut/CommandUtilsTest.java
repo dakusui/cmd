@@ -3,6 +3,7 @@ package com.github.dakusui.cmd.ut;
 import com.github.dakusui.cmd.CommandResult;
 import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
 import com.github.dakusui.cmd.utils.TestUtils;
+import com.github.dakusui.crest.Crest;
 import junit.framework.TestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
@@ -11,9 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import static com.github.dakusui.cmd.CommandUtils.runLocal;
 import static com.github.dakusui.cmd.CommandUtils.runRemote;
-import static com.github.dakusui.cmd.utils.TestUtils.*;
+import static com.github.dakusui.cmd.utils.TestUtils.allOf;
+import static com.github.dakusui.cmd.utils.TestUtils.base64;
+import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
 import static java.lang.String.format;
-import static org.hamcrest.CoreMatchers.anyOf;
 import static org.junit.Assert.assertThat;
 
 public class CommandUtilsTest {
@@ -402,15 +404,11 @@ public class CommandUtilsTest {
       String hostName = TestUtils.hostName();
       String privKey = TestUtils.identity();
 
-      assertThat(
+      Crest.assertThat(
           runRemote(userName, hostName, privKey, "echo hello1"),
-          allOf(
-              matcherBuilder("stdout", CommandResult::stdout).check("=='hello1'", s -> s.equals("hello1")).build(),
-              anyOf(
-                  matcherBuilder("stdout", CommandResult::stderr).check("==''", s -> s.equals("")).build(),
-                  matcherBuilder("stdout", CommandResult::stderr).check("startsWith'Warning: Permanently added the RSA host key for IP address'", s -> s.startsWith("Warning: Permanently added the RSA host key for IP address")).build()
-              ),
-              matcherBuilder("exitCode", CommandResult::exitCode).check("==0", e -> e == 0).build()
+          Crest.allOf(
+              Crest.asString("stdout").equalTo("hello1").$(),
+              Crest.asInteger("exitCode").equalTo(0).$()
           ));
       finished = true;
     } finally {
@@ -429,14 +427,12 @@ public class CommandUtilsTest {
     String userName = runLocal("whoami").stdout();
     String hostName = runLocal("hostname").stdout();
 
-    assertCommandResult(
+    Crest.assertThat(
         runRemote(userName, hostName, TestUtils.identity(), "echo hello"),
-        "hello",
-        "",
-        "hello",
-        0
-    );
-
+        Crest.allOf(
+            Crest.asString("stdout").equalTo("hello").$(),
+            Crest.asInteger("exitCode").equalTo(0).$()
+        ));
   }
 
   @Test(expected = CommandTimeoutException.class, timeout = 10_000)
@@ -474,13 +470,12 @@ public class CommandUtilsTest {
     String userName = runLocal("whoami").stdout();
     String hostName = runLocal("hostname").stdout();
 
-    assertCommandResult(
+    Crest.assertThat(
         runRemote(15_000, userName, hostName, TestUtils.identity(), "echo hello"),
-        "hello",
-        "",
-        "hello",
-        0
-    );
+        Crest.allOf(
+            Crest.asString("stdout").equalTo("hello").$(),
+            Crest.asInteger("exitCode").equalTo(0).$()
+        ));
   }
 
   private static void assertCommandResult(CommandResult result, String stdout, String stderr, String stdouterr, int exitCode) {

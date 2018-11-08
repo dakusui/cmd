@@ -18,7 +18,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.Cmd.*;
+import static com.github.dakusui.cmd.Cmd.cat;
+import static com.github.dakusui.cmd.Cmd.cmd;
+import static com.github.dakusui.cmd.Cmd.local;
 import static com.github.dakusui.cmd.Shell.ssh;
 import static com.github.dakusui.cmd.utils.TestUtils.allOf;
 import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
@@ -176,6 +178,15 @@ public class CmdTest extends TestUtils.TestBase {
             ).build()
         )
     );
+  }
+
+  @Test(timeout = 30_000)
+  public void errorCommand() {
+    cmd("cat -n; unknown")
+        .readFrom(Stream.of("hello", "world", "everyone"))
+        .stream()
+        .peek(System.out::println)
+        .forEach(out::add);
   }
 
   @Test(timeout = 3_000)
