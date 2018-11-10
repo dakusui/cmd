@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
+@Deprecated
 public interface Selector<T> {
   Stream<T> stream();
 

@@ -1,6 +1,8 @@
 package com.github.dakusui.cmd.sandbox;
 
+import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.ProcessStreamer;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -55,4 +57,25 @@ public class Sandbox {
     ).forEach(System.out::println);
   }
 
+  @Test
+  public void testProcessStreamer1() throws InterruptedException {
+    ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
+    ps.stdin(Stream.of("a", "b", "c", null));
+    new Thread(() -> {
+      System.out.println("BEGIN");
+      ps.stream().map(s -> "[" + s + "]").forEach(System.out::println);
+      System.out.println("END");
+    }).start();
+    System.out.println(ps.waitFor());
+    System.out.println(ps);
+    System.out.println("bye");
+  }
+
+  @Test
+  public void testProcessStreamer2() {
+    new ProcessStreamer.Builder(Shell.local(), "echo hello world && echo !").build()
+        .stream()
+        .map(s -> "[" + s + "]")
+        .forEach(System.out::println);
+  }
 }

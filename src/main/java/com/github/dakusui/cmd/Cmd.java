@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd;
 
+import com.github.dakusui.cmd.compat.CompatIoUtils;
 import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.compat.Selector;
@@ -247,7 +248,6 @@ public interface Cmd {
     private       Supplier<Stream<String>>                 stdin      = null;
     private final File                                     cwd;
     private final Map<String, String>                      env;
-    private final IoUtils.RingBuffer<String>               ringBuffer = IoUtils.RingBuffer.create(3);
 
     private Impl(
         Shell shell,
@@ -270,17 +270,9 @@ public interface Cmd {
       this.charset = requireNonNull(charset);
       this.inputTransformer = requireNonNull(inputTransformer);
       this.stdoutTransformer = requireNonNull(stdoutTransformer);
-      this.stdoutConsumer = ((Consumer<String>) s -> {
-        synchronized (ringBuffer) {
-          ringBuffer.write(String.format("STDOUT:%s", s));
-        }
-      }).andThen(requireNonNull(stdoutConsumer));
+      this.stdoutConsumer = requireNonNull(stdoutConsumer);
       this.stderrTransformer = requireNonNull(stderrTransformer);
-      this.stderrConsumer = ((Consumer<String>) s -> {
-        synchronized (ringBuffer) {
-          ringBuffer.write(String.format("STDERR:%s", s));
-        }
-      }).andThen(requireNonNull(stderrConsumer));
+      this.stderrConsumer = requireNonNull(stderrConsumer);
       this.downstreams = new LinkedList<>();
       this.state = State.PREPARING;
     }
@@ -329,12 +321,12 @@ public interface Cmd {
       this.state = State.RUNNING;
       Stream<String> ret = Stream.concat(
           process.stream(),
-          Stream.of(IoUtils.SENTINEL)
+          Stream.of(CompatIoUtils.SENTINEL)
       ).peek(
           s -> LOGGER.trace("BEFORE:{}:{}", this, s)
       ).filter(
           o -> {
-            if (o == IoUtils.SENTINEL) {
+            if (o == CompatIoUtils.SENTINEL) {
               close();
               ////
               // A sentinel shouldn't be passed to following stages.
@@ -439,17 +431,15 @@ public interface Cmd {
 
     @Override
     public String toString() {
-      return String.format("%s '%s':...%s",
+      return String.format("%s '%s'",
           this.shell,
-          this.command,
-          this.ringBuffer.stream().collect(Collectors.joining(String.format("%n"))));
+          this.command);
     }
 
     public void dump() {
       LOGGER.debug("{}.alive={}", this, this.process.isAlive());
       downstreams.forEach((Cmd cmd) -> ((Cmd.Impl) cmd).dump());
     }
-
 
     synchronized private void close(boolean immediate) {
       LOGGER.debug("BEGIN:{};immediate={}", this, immediate);

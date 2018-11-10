@@ -1,6 +1,5 @@
 package com.github.dakusui.cmd.compat;
 
-import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,10 +13,11 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+@Deprecated
 public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
-  private static final Logger  LOGGER = LoggerFactory.getLogger(StreamableQueue.class);
-  private              boolean closed = false;
-  private final BlockingQueue<Object> queue;
+  private static final Logger                LOGGER = LoggerFactory.getLogger(StreamableQueue.class);
+  private              boolean               closed = false;
+  private final        BlockingQueue<Object> queue;
 
   public StreamableQueue(int queueSize) {
     queue = new ArrayBlockingQueue<>(queueSize);
@@ -32,13 +32,13 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
           @Override
           public synchronized boolean hasNext() {
             readNextIfNotYet();
-            return next != IoUtils.SENTINEL;
+            return next != CompatIoUtils.SENTINEL;
           }
 
           @Override
           public synchronized E next() {
             readNextIfNotYet();
-            if (next == IoUtils.SENTINEL)
+            if (next == CompatIoUtils.SENTINEL)
               throw new NoSuchElementException();
             try {
               //noinspection unchecked
@@ -96,7 +96,7 @@ public class StreamableQueue<E> implements Consumer<E>, Supplier<Stream<E>> {
     synchronized (queue) {
       if (closed)
         return;
-      offer(IoUtils.SENTINEL);
+      offer(CompatIoUtils.SENTINEL);
       closed = true;
     }
     LOGGER.debug("END:{}", this);

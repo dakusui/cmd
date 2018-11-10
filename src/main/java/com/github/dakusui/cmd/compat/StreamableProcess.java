@@ -18,6 +18,7 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
+@Deprecated
 public class StreamableProcess extends Process {
   private static final Logger           LOGGER = LoggerFactory.getLogger(StreamableProcess.class);
   private final        Process          process;
@@ -32,9 +33,9 @@ public class StreamableProcess extends Process {
   public StreamableProcess(Shell shell, String command, File cwd, Map<String, String> env, Config config) {
     this.process = createProcess(shell, command, cwd, env);
     this.config = requireNonNull(config);
-    this.stdout = IoUtils.toStream(this.getInputStream(), config.charset()).peek(config.stdoutConsumer());
-    this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset()).peek(config.stderrConsumer());
-    this.stdin = CompatIoUtils.flowControlValve(IoUtils.toConsumer(this.getOutputStream(), config.charset()), 100);
+    this.stdout = CompatIoUtils.toStream(this.getInputStream(), config.charset()).peek(config.stdoutConsumer());
+    this.stderr = CompatIoUtils.toStream(this.getErrorStream(), config.charset()).peek(config.stderrConsumer());
+    this.stdin = CompatIoUtils.flowControlValve(IoUtils.toStringConsumer(this.getOutputStream(), config.charset()), 100);
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
     this.shell = shell;
     this.command = command;

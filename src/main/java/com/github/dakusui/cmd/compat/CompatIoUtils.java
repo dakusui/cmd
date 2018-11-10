@@ -7,11 +7,25 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
+@Deprecated
 public enum CompatIoUtils {
   ;
+
+  /**
+   * A sentinel, that lets consumers know end of a stream,  used in some classes
+   * such as {@code Cmd} and {@code StreamableQueue} in this library.
+   */
+  public static final Object SENTINEL = new Object() {
+    @Override
+    public String toString() {
+      return "SENTINEL";
+    }
+  };
 
   /**
    * An iterator returned by this method may return {@code null}, in case {@code next}
@@ -21,6 +35,7 @@ public enum CompatIoUtils {
    * @param charset Charset used to decode data from {@code is}
    * @return An iterator that returns strings created from {@code id}
    */
+  @Deprecated
   public static Iterator<String> toIterator(InputStream is, Charset charset) {
     return new Iterator<String>() {
       BufferedReader reader = new BufferedReader(
@@ -69,12 +84,30 @@ public enum CompatIoUtils {
     };
   }
 
+  @Deprecated
   public static <T> Consumer<T> flowControlValve(Consumer<T> consumer, int queueSize) {
     return new StreamableQueue<T>(queueSize) {{
       new Thread(() -> Stream.concat(
           get(), Stream.of((T) null)
       ).forEach(consumer)).start();
     }};
+  }
+
+  /**
+   * Returns a stream of strings that reads values from an {@code InputStream} {@code is}
+   * using a {@code Charset} {@code charset}
+   *
+   * @param is      An input stream from which values are read by returned {@code Stream<String>}.
+   * @param charset A charset with which values are read from {@code is}.
+   */
+  @Deprecated
+  public static Stream<String> toStream(InputStream is, Charset charset) {
+    return StreamSupport.stream(
+        ((Iterable<String>) () -> toIterator(is, charset)).spliterator(),
+        false
+    ).filter(
+        Objects::nonNull
+    );
   }
 
   private enum IteratorState {

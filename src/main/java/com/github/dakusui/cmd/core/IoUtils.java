@@ -1,6 +1,5 @@
 package com.github.dakusui.cmd.core;
 
-import com.github.dakusui.cmd.compat.CompatIoUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
 import java.io.BufferedReader;
@@ -14,9 +13,9 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -24,19 +23,10 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static com.github.dakusui.cmd.core.Checks.requireArgument;
+
 public enum IoUtils {
   ;
-
-  /**
-   * A sentinel, that lets consumers know end of a stream,  used in some classes
-   * such as {@code Cmd} and {@code StreamableQueue} in this library.
-   */
-  public static final Object SENTINEL = new Object() {
-    @Override
-    public String toString() {
-      return "SENTINEL";
-    }
-  };
 
   /**
    * Returns a consumer which writes given string objects to an {@code OutputStream}
@@ -48,34 +38,21 @@ public enum IoUtils {
    * @param os      OutputStream to which string objects given to returned consumer written.
    * @param charset A {@code Charset} object that specifies encoding by which
    */
-  public static Consumer<String> toConsumer(OutputStream os, Charset charset) {
+  public static Consumer<String> toStringConsumer(OutputStream os, Charset charset) {
     try {
       PrintStream ps = new PrintStream(os, true, charset.displayName());
       return s -> {
         if (s != null) {
+          System.err.println("in toStringConsumer::" + s);
           ps.println(s);
-        } else
+        } else {
+          ps.flush();
           ps.close();
+        }
       };
     } catch (UnsupportedEncodingException e) {
       throw Exceptions.wrap(e);
     }
-  }
-
-  /**
-   * Returns a stream of strings that reads values from an {@code InputStream} {@code is}
-   * using a {@code Charset} {@code charset}
-   *
-   * @param is      An input stream from which values are read by returned {@code Stream<String>}.
-   * @param charset A charset with which values are read from {@code is}.
-   */
-  public static Stream<String> toStream(InputStream is, Charset charset) {
-    return StreamSupport.stream(
-        ((Iterable<String>) () -> CompatIoUtils.toIterator(is, charset)).spliterator(),
-        false
-    ).filter(
-        Objects::nonNull
-    );
   }
 
   /**
@@ -101,84 +78,99 @@ public enum IoUtils {
     Set<Object> sentinels = new HashSet<>();
 
     int i = 0;
+    List<Thread> threads = new LinkedList<>();
     for (Stream<T> a : streams) {
-      int finalI = i;
-      new Thread(() -> {
-        Object sentinel = new Object() {
-          @Override
-          public String toString() {
-            return String.format("SENTINEL:%s", finalI);
-          }
-        };
-        sentinels.add(sentinel);
-        Stream.concat(a, Stream.of(sentinel)).forEach(e -> putElement(queue, e));
-      }).start();
+      Object sentinel = createSentinel(i);
+      sentinels.add(sentinel);
+      threads.add(new Thread(
+          () -> Stream.concat(a, Stream.of(sentinel))
+              .forEach(e -> putElement(queue, e))));
       i++;
     }
+    threads.forEach(Thread::start);
 
     return StreamSupport.stream(new Iterable<T>() {
-      Iterator i = new Iterator() {
-        @Override
-        public boolean hasNext() {
-          return true;
-        }
-
-        @Override
-        public Object next() {
-          while (true) {
-            try {
-              return queue.take();
-            } catch (InterruptedException ignored) {
-            }
-          }
-        }
-      };
+      Iterator i = blockingQueueIterator(queue);
 
       @Override
       public Iterator<T> iterator() {
         return new Iterator<T>() {
-          Set<Object> remainingSentinels = new HashSet<>(sentinels);
-          Object next;
+          private Object invalid = new Object();
+          final Set<Object> remainingSentinels = new HashSet<>(sentinels);
+          Object next = invalid;
 
           @Override
           public boolean hasNext() {
-            readNext();
+            if (this.next == this.invalid)
+              this.next = readNext();
             return !isSentinel(this.next);
           }
 
           @SuppressWarnings("unchecked")
           @Override
           public T next() {
+            if (this.next == this.invalid)
+              this.next = readNext();
             if (isSentinel(this.next))
               throw new NoSuchElementException();
-            return (T) this.next;
+            try {
+              return (T) requireArgument(this.next, v -> v instanceof String);
+            } finally {
+              this.next = this.invalid;
+            }
           }
 
-          void readNext() {
+          Object readNext() {
             Object next = i.next();
             if (isSentinel(next)) {
-              remainingSentinels.remove(next);
-              if (remainingSentinels.isEmpty())
-                this.next = next;
-              else {
-                readNext();
-                return;
-              }
+              this.remainingSentinels.remove(next);
+              if (this.remainingSentinels.isEmpty())
+                return next;
+              else
+                return readNext();
             }
-            this.next = next;
+            return next;
           }
 
           private boolean isSentinel(Object next) {
             return sentinels.contains(next);
           }
-
         };
       }
     }.spliterator(), false);
   }
 
+  private static Iterator blockingQueueIterator(BlockingQueue<Object> queue) {
+    return new Iterator() {
+      @Override
+      public boolean hasNext() {
+        return true;
+      }
+
+      @Override
+      public Object next() {
+        while (true) {
+          try {
+            return queue.take();
+          } catch (InterruptedException ignored) {
+          }
+        }
+      }
+    };
+  }
+
+  private static Object createSentinel(int i) {
+    return new Object() {
+      @Override
+      public String toString() {
+        return String.format("SENTINEL:%s", i);
+      }
+    };
+  }
+
   private static void putElement(BlockingQueue<Object> queue, Object e) {
     try {
+      System.err.println("in putElement:" + e);
       queue.put(e);
     } catch (InterruptedException ignored) {
     }
@@ -249,5 +241,4 @@ public enum IoUtils {
       };
     }
   }
-
 }
