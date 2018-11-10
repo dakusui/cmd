@@ -1,8 +1,9 @@
 package com.github.dakusui.cmd;
 
+import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.core.IoUtils;
-import com.github.dakusui.cmd.core.Selector;
-import com.github.dakusui.cmd.core.StreamableProcess;
+import com.github.dakusui.cmd.compat.Selector;
+import com.github.dakusui.cmd.compat.StreamableProcess;
 import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;

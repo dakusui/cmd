@@ -1,8 +1,8 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.core.IoUtils;
-import com.github.dakusui.cmd.core.Selector;
+import com.github.dakusui.cmd.compat.Selector;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 
@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.core.Selector.select;
+import static com.github.dakusui.cmd.compat.Selector.select;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.MatcherAssert.assertThat;
 

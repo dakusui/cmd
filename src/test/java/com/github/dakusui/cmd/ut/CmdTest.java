@@ -1,7 +1,7 @@
 package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.Cmd;
-import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.utils.TestUtils;

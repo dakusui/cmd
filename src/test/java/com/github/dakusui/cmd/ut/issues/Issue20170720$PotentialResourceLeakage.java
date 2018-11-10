@@ -1,8 +1,8 @@
 package com.github.dakusui.cmd.ut.issues;
 
-import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.core.IoUtils;
-import com.github.dakusui.cmd.core.Selector;
+import com.github.dakusui.cmd.compat.Selector;
 import com.github.dakusui.cmd.ut.StreamableProcessTest;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.FixMethodOrder;

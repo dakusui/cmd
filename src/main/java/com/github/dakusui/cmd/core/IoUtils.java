@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.core;
 
-import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.compat.CompatIoUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
 import java.io.BufferedReader;
@@ -12,10 +12,14 @@ import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -58,14 +62,6 @@ public enum IoUtils {
     }
   }
 
-  public static <T> Consumer<T> flowControlValve(Consumer<T> consumer, int queueSize) {
-    return new StreamableQueue<T>(queueSize) {{
-      new Thread(() -> Stream.concat(
-          get(), Stream.of((T) null)
-      ).forEach(consumer)).start();
-    }};
-  }
-
   /**
    * Returns a stream of strings that reads values from an {@code InputStream} {@code is}
    * using a {@code Charset} {@code charset}
@@ -75,7 +71,7 @@ public enum IoUtils {
    */
   public static Stream<String> toStream(InputStream is, Charset charset) {
     return StreamSupport.stream(
-        ((Iterable<String>) () -> toIterator(is, charset)).spliterator(),
+        ((Iterable<String>) () -> CompatIoUtils.toIterator(is, charset)).spliterator(),
         false
     ).filter(
         Objects::nonNull
@@ -91,59 +87,141 @@ public enum IoUtils {
   }
 
   /**
-   * An iterator returned by this method may return {@code null}, in case {@code next}
-   * method is called after the input stream {@code is} is closed.
+   * Merges given streams possibly block into one keeping orders where elements
+   * appear in original streams.
    *
-   * @param is      An input stream from which returned iterator is created.
-   * @param charset Charset used to decode data from {@code is}
-   * @return An iterator that returns strings created from {@code id}
+   * @param queueSize The size of queue
+   * @param streams   input streams
+   * @param <T>       Type of elements that given streams contain.
+   * @return merged stream
    */
-  public static Iterator<String> toIterator(InputStream is, Charset charset) {
+  @SafeVarargs
+  public static <T> Stream<T> merge(int queueSize, Stream<T>... streams) {
+    BlockingQueue<Object> queue = new ArrayBlockingQueue<>(queueSize);
+    Set<Object> sentinels = new HashSet<>();
+
+    int i = 0;
+    for (Stream<T> a : streams) {
+      int finalI = i;
+      new Thread(() -> {
+        Object sentinel = new Object() {
+          @Override
+          public String toString() {
+            return String.format("SENTINEL:%s", finalI);
+          }
+        };
+        sentinels.add(sentinel);
+        Stream.concat(a, Stream.of(sentinel)).forEach(e -> putElement(queue, e));
+      }).start();
+      i++;
+    }
+
+    return StreamSupport.stream(new Iterable<T>() {
+      Iterator i = new Iterator() {
+        @Override
+        public boolean hasNext() {
+          return true;
+        }
+
+        @Override
+        public Object next() {
+          while (true) {
+            try {
+              return queue.take();
+            } catch (InterruptedException ignored) {
+            }
+          }
+        }
+      };
+
+      @Override
+      public Iterator<T> iterator() {
+        return new Iterator<T>() {
+          Set<Object> remainingSentinels = new HashSet<>(sentinels);
+          Object next;
+
+          @Override
+          public boolean hasNext() {
+            readNext();
+            return !isSentinel(this.next);
+          }
+
+          @SuppressWarnings("unchecked")
+          @Override
+          public T next() {
+            if (isSentinel(this.next))
+              throw new NoSuchElementException();
+            return (T) this.next;
+          }
+
+          void readNext() {
+            Object next = i.next();
+            if (isSentinel(next)) {
+              remainingSentinels.remove(next);
+              if (remainingSentinels.isEmpty())
+                this.next = next;
+              else {
+                readNext();
+                return;
+              }
+            }
+            this.next = next;
+          }
+
+          private boolean isSentinel(Object next) {
+            return sentinels.contains(next);
+          }
+
+        };
+      }
+    }.spliterator(), false);
+  }
+
+  private static void putElement(BlockingQueue<Object> queue, Object e) {
+    try {
+      queue.put(e);
+    } catch (InterruptedException ignored) {
+    }
+  }
+
+  private static Iterator<String> toIterator(BufferedReader br) {
     return new Iterator<String>() {
-      BufferedReader reader = new BufferedReader(
-          new InputStreamReader(
-              is,
-              charset
-          )
-      );
-      IteratorState state = IteratorState.NOT_READ;
-      String next;
+      String next = readLineFrom(br);
 
       @Override
-      public synchronized boolean hasNext() {
-        readIfNotReadYet();
-        return state != IteratorState.END;
+      public boolean hasNext() {
+        return this.next != null;
       }
 
       @Override
-      public synchronized String next() {
-        if (state == IteratorState.END)
-          throw new NoSuchElementException();
-        readIfNotReadYet();
+      public String next() {
         try {
-          return next;
+          return this.next;
         } finally {
-          state = IteratorState.NOT_READ;
-        }
-      }
-
-      private void readIfNotReadYet() {
-        if (state == IteratorState.NOT_READ) {
-          this.next = readLine(reader);
-          state = this.next == null ?
-              IteratorState.END :
-              IteratorState.READ;
-        }
-      }
-
-      private String readLine(BufferedReader reader) {
-        try {
-          return reader.readLine();
-        } catch (IOException e) {
-          return null;
+          this.next = readLineFrom(br);
         }
       }
     };
+  }
+
+  private static String readLineFrom(BufferedReader br) {
+    try {
+      return br.readLine();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static Stream<String> stream(InputStream is, Charset charset) {
+    return toStream(bufferedReader(is, charset));
+  }
+
+  private static BufferedReader bufferedReader(InputStream is, Charset charset) {
+    return new BufferedReader(new InputStreamReader(is, charset));
+  }
+
+  private static Stream<String> toStream(BufferedReader br) {
+    return StreamSupport.stream(((Iterable<String>) () -> toIterator(br)).spliterator(), false);
   }
 
   public interface RingBuffer<E> {
@@ -172,9 +250,4 @@ public enum IoUtils {
     }
   }
 
-  private enum IteratorState {
-    READ,
-    NOT_READ,
-    END
-  }
 }

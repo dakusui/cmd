@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd;
+package com.github.dakusui.cmd.compat;
 
 import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;

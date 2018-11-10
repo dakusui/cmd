@@ -1,7 +1,7 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.CommandResult;
-import com.github.dakusui.cmd.exceptions.CommandTimeoutException;
+import com.github.dakusui.cmd.compat.CommandResult;
+import com.github.dakusui.cmd.compat.CommandTimeoutException;
 import com.github.dakusui.cmd.utils.TestUtils;
 import com.github.dakusui.crest.Crest;
 import junit.framework.TestCase;
@@ -10,8 +10,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.github.dakusui.cmd.CommandUtils.runLocal;
-import static com.github.dakusui.cmd.CommandUtils.runRemote;
+import static com.github.dakusui.cmd.compat.CommandUtils.runLocal;
+import static com.github.dakusui.cmd.compat.CommandUtils.runRemote;
 import static com.github.dakusui.cmd.utils.TestUtils.allOf;
 import static com.github.dakusui.cmd.utils.TestUtils.base64;
 import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;

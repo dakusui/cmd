@@ -3,7 +3,7 @@ package com.github.dakusui.cmd.ut;
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.IoUtils;
-import com.github.dakusui.cmd.core.StreamableProcess;
+import com.github.dakusui.cmd.compat.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;

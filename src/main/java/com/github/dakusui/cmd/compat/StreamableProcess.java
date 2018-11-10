@@ -1,6 +1,7 @@
-package com.github.dakusui.cmd.core;
+package com.github.dakusui.cmd.compat;
 
 import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.core.IoUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,22 +19,22 @@ import java.util.stream.Stream;
 import static java.util.Objects.requireNonNull;
 
 public class StreamableProcess extends Process {
-  private static final Logger LOGGER = LoggerFactory.getLogger(StreamableProcess.class);
-  private final Process          process;
-  private final Stream<String>   stdout;
-  private final Stream<String>   stderr;
-  private final Consumer<String> stdin;
-  private final Selector<String> selector;
-  private final Config           config;
-  private final String           command;
-  private final Shell            shell;
+  private static final Logger           LOGGER = LoggerFactory.getLogger(StreamableProcess.class);
+  private final        Process          process;
+  private final        Stream<String>   stdout;
+  private final        Stream<String>   stderr;
+  private final        Consumer<String> stdin;
+  private final        Selector<String> selector;
+  private final        Config           config;
+  private final        String           command;
+  private final        Shell            shell;
 
   public StreamableProcess(Shell shell, String command, File cwd, Map<String, String> env, Config config) {
     this.process = createProcess(shell, command, cwd, env);
     this.config = requireNonNull(config);
     this.stdout = IoUtils.toStream(this.getInputStream(), config.charset()).peek(config.stdoutConsumer());
     this.stderr = IoUtils.toStream(this.getErrorStream(), config.charset()).peek(config.stderrConsumer());
-    this.stdin = IoUtils.flowControlValve(IoUtils.toConsumer(this.getOutputStream(), config.charset()), 100);
+    this.stdin = CompatIoUtils.flowControlValve(IoUtils.toConsumer(this.getOutputStream(), config.charset()), 100);
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
     this.shell = shell;
     this.command = command;
@@ -164,7 +165,7 @@ public class StreamableProcess extends Process {
 
   private static Selector<String> createSelector(Config config, Consumer<String> stdin, Stream<String> stdout, Stream<String> stderr) {
     new Thread(() -> {
-      config.stdin().forEach(IoUtils.flowControlValve(stdin, 100));
+      config.stdin().forEach(CompatIoUtils.flowControlValve(stdin, 100));
     }).start();
     return new Selector.Builder<String>(
         String.format("StreamableProcess:%s", Thread.currentThread().getId())

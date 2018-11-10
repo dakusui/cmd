@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.StreamableQueue;
+import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 

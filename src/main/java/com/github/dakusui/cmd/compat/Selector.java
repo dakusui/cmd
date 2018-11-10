@@ -1,4 +1,6 @@
-package com.github.dakusui.cmd.core;
+package com.github.dakusui.cmd.compat;
+
+import com.github.dakusui.cmd.core.IoUtils;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
