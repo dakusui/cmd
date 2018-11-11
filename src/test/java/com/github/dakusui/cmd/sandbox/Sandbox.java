@@ -9,8 +9,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
+
+import static com.github.dakusui.crest.Crest.allOf;
+import static com.github.dakusui.crest.Crest.asInteger;
+import static com.github.dakusui.crest.Crest.asListOf;
+import static com.github.dakusui.crest.Crest.assertThat;
+import static com.github.dakusui.crest.Crest.call;
+import static com.github.dakusui.crest.Crest.sublistAfter;
+import static com.github.dakusui.crest.utils.printable.Predicates.containsString;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class Sandbox {
 
@@ -51,7 +63,9 @@ public class Sandbox {
 
   @Test(timeout = 3_000)
   public void testMerge() {
-    IoUtils.merge(3,
+    IoUtils.merge(
+        Executors.newFixedThreadPool(3),
+        3,
         Stream.of("A", "B", "C", "D", "E", "F", "G", "H"),
         Stream.of("a", "b", "c", "d", "e", "f", "g", "h")
     ).forEach(System.out::println);
@@ -61,14 +75,48 @@ public class Sandbox {
   public void testProcessStreamer1() throws InterruptedException {
     ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
     ps.stdin(Stream.of("a", "b", "c", null));
-    new Thread(() -> {
-      System.out.println("BEGIN");
-      ps.stream().map(s -> "[" + s + "]").forEach(System.out::println);
-      System.out.println("END");
-    }).start();
+    List<String> out = new LinkedList<>();
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
+    executorService.submit(() -> {
+      ps.stream().map(s -> "[" + s + "]").forEach(out::add);
+    });
     System.out.println(ps.waitFor());
-    System.out.println(ps);
-    System.out.println("bye");
+    executorService.shutdown();
+    while (!executorService.isTerminated()) {
+      executorService.awaitTermination(1, MILLISECONDS);
+    }
+    assertThat(
+        out,
+        asListOf(String.class,
+            sublistAfter(containsString("a"))
+                .after(containsString("b"))
+                .after(containsString("c")).$())
+            .isEmpty().$()
+    );
+  }
+
+  @Test
+  public void testProcessStreamer1a() throws InterruptedException {
+    ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").configureStderr(true, true, true).queueSize(1).ringBufferSize(1).build();
+    ps.stdin(Stream.of("a", "b", "c", null));
+    List<String> out = new LinkedList<>();
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
+    executorService.submit(() -> {
+      ps.stream().map(s -> "[" + s + "]").forEach(out::add);
+    });
+    System.out.println(ps.waitFor());
+    executorService.shutdown();
+    while (!executorService.isTerminated()) {
+      executorService.awaitTermination(1, MILLISECONDS);
+    }
+    assertThat(
+        out,
+        asListOf(String.class,
+            sublistAfter(containsString("a"))
+                .after(containsString("b"))
+                .after(containsString("c")).$())
+            .isEmpty().$()
+    );
   }
 
   @Test
@@ -77,5 +125,40 @@ public class Sandbox {
         .stream()
         .map(s -> "[" + s + "]")
         .forEach(System.out::println);
+  }
+
+  @Test
+  public void testProcessStreamer2E() {
+    ProcessStreamer ps = new ProcessStreamer.Builder(
+        Shell.local(),
+        "echo hello world && Echo hello!").build();
+    class Result {
+      private int          exitCode;
+      private List<String> out = new LinkedList<>();
+
+      public int exitCode() {
+        return this.exitCode;
+      }
+
+      public List<String> out() {
+        return this.out;
+      }
+    }
+    Result result = new Result();
+    ps.stream().forEach(result.out::add);
+    result.exitCode = ps.exitValue();
+
+    System.out.println(ps + "=" + result.exitCode);
+    result.out.forEach(System.out::println);
+
+    assertThat(
+        result,
+        allOf(
+            asListOf(String.class, call("out").$())
+                .contains("sh: 1: Echo: not found")
+                .contains("hello world").$(),
+            asInteger("exitCode").eq(127).$()
+        )
+    );
   }
 }

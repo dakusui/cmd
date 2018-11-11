@@ -13,12 +13,13 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -43,7 +44,6 @@ public enum IoUtils {
       PrintStream ps = new PrintStream(os, true, charset.displayName());
       return s -> {
         if (s != null) {
-          System.err.println("in toStringConsumer::" + s);
           ps.println(s);
         } else {
           ps.flush();
@@ -67,34 +67,51 @@ public enum IoUtils {
    * Merges given streams possibly block into one keeping orders where elements
    * appear in original streams.
    *
+   * @param
    * @param queueSize The size of queue
    * @param streams   input streams
    * @param <T>       Type of elements that given streams contain.
    * @return merged stream
    */
   @SafeVarargs
-  public static <T> Stream<T> merge(int queueSize, Stream<T>... streams) {
+  public static <T> Stream<T> merge(ExecutorService executorService, int queueSize, Stream<T>... streams) {
     BlockingQueue<Object> queue = new ArrayBlockingQueue<>(queueSize);
     Set<Object> sentinels = new HashSet<>();
 
-    int i = 0;
-    List<Thread> threads = new LinkedList<>();
+    AtomicInteger i = new AtomicInteger(streams.length);
     for (Stream<T> a : streams) {
-      Object sentinel = createSentinel(i);
+      Object sentinel = createSentinel(i.get());
       sentinels.add(sentinel);
-      threads.add(new Thread(
+      executorService.submit(
           () -> Stream.concat(a, Stream.of(sentinel))
-              .forEach(e -> putElement(queue, e))));
-      i++;
+              .forEach(e -> {
+                synchronized (i) {
+                  i.decrementAndGet();
+                  i.notifyAll();
+                }
+                putElement(queue, e);
+              }));
     }
-    threads.forEach(Thread::start);
-
+    synchronized (i) {
+      while (i.get() > 0) {
+        try {
+          i.wait();
+        } catch (InterruptedException ignored) {
+        }
+      }
+    }
     return StreamSupport.stream(new Iterable<T>() {
       Iterator i = blockingQueueIterator(queue);
 
       @Override
       public Iterator<T> iterator() {
         return new Iterator<T>() {
+          /**
+           * An object to let this iterator know that the {@code next} field
+           * is not valid anymore and it needs to read the next value from the
+           * source {@code i}.
+           * This is different from  a sentinel.
+           */
           private Object invalid = new Object();
           final Set<Object> remainingSentinels = new HashSet<>(sentinels);
           Object next = invalid;
@@ -170,7 +187,6 @@ public enum IoUtils {
 
   private static void putElement(BlockingQueue<Object> queue, Object e) {
     try {
-      System.err.println("in putElement:" + e);
       queue.put(e);
     } catch (InterruptedException ignored) {
     }

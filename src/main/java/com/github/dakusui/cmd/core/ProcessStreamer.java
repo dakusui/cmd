@@ -12,14 +12,18 @@ import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
+import static com.github.dakusui.cmd.core.IoUtils.toStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
@@ -32,8 +36,55 @@ public class ProcessStreamer {
   private final        StreamOptions      stdoutOptions;
   private final        StreamOptions      stderrOptions;
   private final        RingBuffer<String> ringBuffer;
+  private final        ExecutorService    executorService;
   private              Stream<String>     output;
   private              Consumer<String>   input;
+
+  public void stdin(Stream<String> stream) {
+    initInput(stream);
+  }
+
+  public Stream<String> stream() {
+    initOutput();
+    return this.output;
+  }
+
+  public int getPid() {
+    return getPid(this.process);
+  }
+
+  /**
+   * You need to call {@link ProcessStreamer#stdin(Stream)} and {@link ProcessStreamer#stream()}
+   * methods on this object.
+   * Otherwise this method will wait forever.
+   *
+   * @return exit code of the underlying
+   * @throws InterruptedException if the current thread is
+   *                              {@linkplain Thread#interrupt() interrupted} by another
+   *                              thread while it is waiting, then the wait is ended and
+   *                              an {@link InterruptedException} is thrown.
+   */
+  public int waitFor() throws InterruptedException {
+    this.initOutput();
+    this.executorService.shutdown();
+    while (!this.executorService.isTerminated()) {
+      this.executorService.awaitTermination(1, MILLISECONDS);
+    }
+    return this.process.waitFor();
+  }
+
+  public int exitValue() {
+    return this.process.exitValue();
+  }
+
+  public void destroy() {
+    this.process.destroy();
+  }
+
+  @Override
+  public String toString() {
+    return formatter.get();
+  }
 
   private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
       StreamOptions stdoutOptions,
@@ -48,26 +99,27 @@ public class ProcessStreamer {
     this.stderrOptions = stderrOptions;
     this.formatter = () -> {
       synchronized (this.ringBuffer) {
-        return format("%s:%s:...%s", shell, command, ringBuffer.stream().collect(joining(format("%n"))));
+        return format("%s:%s:...%s", shell, command, ringBuffer.stream().collect(joining(";")));
       }
     };
+    this.executorService = Executors.newFixedThreadPool(3);
   }
 
-  public synchronized void stdin(Stream<String> stream) {
+  private synchronized void initInput(Stream<String> stream) {
     if (this.input == null) {
-      this.input = IoUtils.toStringConsumer(this.process.getOutputStream(), this.charset);
+      this.input = toStringConsumer(this.process.getOutputStream(), this.charset);
+      this.executorService.submit(() -> stream.forEach(this.input));
     }
-    new Thread(() -> stream.peek(System.err::println).forEach(this.input)).start();
   }
 
-  public synchronized Stream<String> stream() {
-    initOutput();
-    return this.output;
-  }
-
-  private void initOutput() {
-    if (this.output == null)
+  /**
+   * This method cannot be called from inside constructor because get{Input,Error}Stream
+   * may block
+   */
+  private synchronized void initOutput() {
+    if (this.output == null) {
       this.output = IoUtils.merge(
+          this.executorService,
           this.queueSize,
           configureStream(
               IoUtils.stream(this.process.getInputStream(), charset),
@@ -77,33 +129,7 @@ public class ProcessStreamer {
               IoUtils.stream(this.process.getErrorStream(), charset),
               ringBuffer,
               stderrOptions));
-  }
-
-  public int getPid() {
-    return getPid(this.process);
-  }
-
-  public synchronized int waitFor() throws InterruptedException {
-    LOGGER.debug("BEGIN:{}", this);
-    try {
-      this.initOutput();
-      return process.waitFor();
-    } finally {
-      LOGGER.debug("END:{}", this);
     }
-  }
-
-  public int exitValue() {
-    return process.exitValue();
-  }
-
-  public void destroy() {
-    process.destroy();
-  }
-
-  @Override
-  public String toString() {
-    return formatter.get();
   }
 
   private Stream<String> configureStream(Stream<String> stream, RingBuffer<String> ringBuffer, StreamOptions options) {
@@ -179,6 +205,21 @@ public class ProcessStreamer {
 
     public Builder configureStderr(boolean logged, boolean tailed, boolean connected) {
       this.stderrOptions = new StreamOptions(logged, "STDERR", tailed, connected);
+      return this;
+    }
+
+    /**
+     * Sets this process builder's working directory.
+     *
+     * {@code cwd} can be {@code null} and it means the working directory of the
+     * current Java process.
+     *
+     * @param cwd The new working directory
+     * @return This object
+     * @see ProcessBuilder#directory(File)
+     */
+    public Builder cwd(File cwd) {
+      this.cwd = cwd;
       return this;
     }
 
