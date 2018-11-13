@@ -2,13 +2,7 @@ package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.exceptions.Exceptions;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -39,19 +33,38 @@ public enum IoUtils {
    * @param os      OutputStream to which string objects given to returned consumer written.
    * @param charset A {@code Charset} object that specifies encoding by which
    */
-  public static Consumer<String> toStringConsumer(OutputStream os, Charset charset) {
+  public static CloseableStringConsumer toStringConsumer(OutputStream os, Charset charset) {
     try {
-      PrintStream ps = new PrintStream(os, true, charset.displayName());
-      return s -> {
-        if (s != null) {
-          ps.println(s);
-        } else {
-          ps.flush();
-          ps.close();
-        }
-      };
+      return CloseableStringConsumer.create(os, charset);
     } catch (UnsupportedEncodingException e) {
       throw Exceptions.wrap(e);
+    }
+  }
+
+  public interface CloseableStringConsumer extends Consumer<String>, Closeable {
+    @Override
+    default void accept(String s) {
+      if (s != null)
+        this.writeLine(s);
+      else
+        this.close();
+    }
+
+    default void writeLine(String s) {
+      this.printStream().println(s);
+    }
+
+    @Override
+    default void close() {
+      printStream().flush();
+      printStream().close();
+    }
+
+    PrintStream printStream();
+
+    static CloseableStringConsumer create(OutputStream os, Charset charset) throws UnsupportedEncodingException {
+      PrintStream ps = new PrintStream(os, true, charset.name());
+      return () -> ps;
     }
   }
 

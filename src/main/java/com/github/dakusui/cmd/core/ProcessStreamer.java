@@ -1,6 +1,7 @@
 package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.core.IoUtils.CloseableStringConsumer;
 import com.github.dakusui.cmd.core.IoUtils.RingBuffer;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
@@ -14,7 +15,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -28,33 +28,56 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 public class ProcessStreamer {
-  private static final Logger             LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final        Process            process;
-  private final        Charset            charset;
-  private final        int                queueSize;
-  private final        Supplier<String>   formatter;
-  private final        StreamOptions      stdoutOptions;
-  private final        StreamOptions      stderrOptions;
-  private final        RingBuffer<String> ringBuffer;
-  private final        ExecutorService    executorService;
-  private              Stream<String>     output;
-  private              Consumer<String>   input;
+  private static final Logger LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
+  private final Process process;
+  private final Charset charset;
+  private final int queueSize;
+  private final Supplier<String> formatter;
+  private final StreamOptions stdoutOptions;
+  private final StreamOptions stderrOptions;
+  private final RingBuffer<String> ringBuffer;
+  private final ExecutorService executorService;
+  private Stream<String> output;
+  private CloseableStringConsumer input;
 
-  public void stdin(Stream<String> stream) {
-    initInput(stream);
+  /**
+   * Drains data from {@code stream} to the underlying process.
+   *
+   * @param stream A data stream to be drained to the process.
+   */
+  public void drain(Stream<String> stream) {
+    ensureInputInitialized();
+    requireNonNull(stream).forEach(this.input::writeLine);
   }
 
+  /**
+   * Closes {@code stdin} of this process.
+   */
+  public void close() {
+    ensureInputInitialized();
+    this.input.close();
+  }
+
+  /**
+   * Streams data from the underlying process.
+   * @return data stream.
+   */
   public Stream<String> stream() {
-    initOutput();
+    ensureOutputInitialized();
     return this.output;
   }
 
+  /**
+   * Returns  a pid of  a process.
+   *
+   * @return PID of a UNIX process.
+   */
   public int getPid() {
     return getPid(this.process);
   }
 
   /**
-   * You need to call {@link ProcessStreamer#stdin(Stream)} and {@link ProcessStreamer#stream()}
+   * You need to call {@link ProcessStreamer#drain(Stream)} and {@link ProcessStreamer#stream()}
    * methods on this object.
    * Otherwise this method will wait forever.
    *
@@ -65,7 +88,7 @@ public class ProcessStreamer {
    *                              an {@link InterruptedException} is thrown.
    */
   public int waitFor() throws InterruptedException {
-    this.initOutput();
+    this.ensureOutputInitialized();
     this.executorService.shutdown();
     while (!this.executorService.isTerminated()) {
       this.executorService.awaitTermination(1, MILLISECONDS);
@@ -78,7 +101,10 @@ public class ProcessStreamer {
   }
 
   public void destroy() {
-    this.process.destroy();
+    if (this.process.isAlive()) {
+      this.executorService.shutdownNow();
+      this.process.destroy();
+    }
   }
 
   @Override
@@ -87,9 +113,9 @@ public class ProcessStreamer {
   }
 
   private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      StreamOptions stdoutOptions,
-      StreamOptions stderrOptions,
-      int queueSize, int ringBufferSize) {
+                          StreamOptions stdoutOptions,
+                          StreamOptions stderrOptions,
+                          int queueSize, int ringBufferSize) {
     this.process = createProcess(shell, command, cwd, env);
     this.charset = charset;
     this.queueSize = queueSize;
@@ -105,10 +131,9 @@ public class ProcessStreamer {
     this.executorService = Executors.newFixedThreadPool(3);
   }
 
-  private synchronized void initInput(Stream<String> stream) {
+  private synchronized void ensureInputInitialized() {
     if (this.input == null) {
       this.input = toStringConsumer(this.process.getOutputStream(), this.charset);
-      this.executorService.submit(() -> stream.forEach(this.input));
     }
   }
 
@@ -116,7 +141,7 @@ public class ProcessStreamer {
    * This method cannot be called from inside constructor because get{Input,Error}Stream
    * may block
    */
-  private synchronized void initOutput() {
+  private synchronized void ensureOutputInitialized() {
     if (this.output == null) {
       this.output = IoUtils.merge(
           this.executorService,
@@ -183,15 +208,15 @@ public class ProcessStreamer {
 
   public static class Builder {
 
-    private final Shell               shell;
-    private       String              command;
-    private       File                cwd;
-    private final Map<String, String> env            = new HashMap<>();
-    private       StreamOptions       stdoutOptions  = new StreamOptions(true, "STDOUT", true, true);
-    private       StreamOptions       stderrOptions  = new StreamOptions(true, "STDERR", true, true);
-    private       Charset             charset        = Charset.defaultCharset();
-    private       int                 queueSize      = 100;
-    private       int                 ringBufferSize = 100;
+    private final Shell shell;
+    private String command;
+    private File cwd;
+    private final Map<String, String> env = new HashMap<>();
+    private StreamOptions stdoutOptions = new StreamOptions(true, "STDOUT", true, true);
+    private StreamOptions stderrOptions = new StreamOptions(true, "STDERR", true, true);
+    private Charset charset = Charset.defaultCharset();
+    private int queueSize = 100;
+    private int ringBufferSize = 100;
 
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
@@ -210,7 +235,7 @@ public class ProcessStreamer {
 
     /**
      * Sets this process builder's working directory.
-     *
+     * <p>
      * {@code cwd} can be {@code null} and it means the working directory of the
      * current Java process.
      *
@@ -260,7 +285,7 @@ public class ProcessStreamer {
 
   static class StreamOptions {
     private final boolean logged;
-    private final String  loggingTag;
+    private final String loggingTag;
     private final boolean tailed;
     private final boolean connected;
 
@@ -286,5 +311,20 @@ public class ProcessStreamer {
     boolean isConnected() {
       return connected;
     }
+  }
+
+  public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
+                                                      StreamOptions stdoutOptions,
+                                                      StreamOptions stderrOptions,
+                                                      int queueSize, int ringBufferSize) {
+    return new ProcessStreamer(shell, command, cwd, env, charset, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
+      @Override
+      public void drain(Stream<String> stream) {
+        super.drain(stream.peek(s -> {
+          if (s == null)
+            super.close();
+        }));
+      }
+    };
   }
 }
