@@ -1,6 +1,6 @@
 package com.github.dakusui.cmd.compat;
 
-import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.StreamUtils;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -26,7 +26,7 @@ public interface Selector<T> {
    */
   static <T> Stream<T> select(List<Stream<T>> streams) {
     return new Selector.Builder<T>("Selector.select") {{
-      streams.forEach((Stream<T> each) -> add(each, IoUtils.nop(), true));
+      streams.forEach((Stream<T> each) -> add(each, StreamUtils.nop(), true));
     }}.build().stream();
   }
 

@@ -1,7 +1,7 @@
 package com.github.dakusui.cmd.ut.issues;
 
 import com.github.dakusui.cmd.compat.StreamableQueue;
-import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.compat.Selector;
 import com.github.dakusui.cmd.ut.StreamableProcessTest;
 import com.github.dakusui.cmd.utils.TestUtils;
@@ -29,14 +29,14 @@ public class Issue20170720$PotentialResourceLeakage {
     StreamableQueue<String> down2 = new StreamableQueue<>(100);
     Stream<String> up = TestUtils.list("stdin", 100_000).stream().parallel().peek(down1).peek(down2);
     new Thread(() -> {
-      up.forEach(IoUtils.nop());
+      up.forEach(StreamUtils.nop());
       Stream.of(down1, down2).parallel().forEach(each -> each.accept(null));
     }).start();
     new Selector.Builder<String>(
         "UT"
     ).add(
         TestUtils.<String>list("stdout", 100_000).stream(),
-        IoUtils.nop(),
+        StreamUtils.nop(),
         true
     ).add(
         TestUtils.<String>list("stderr", 100_000).stream(),

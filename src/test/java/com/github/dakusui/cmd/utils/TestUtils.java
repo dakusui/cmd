@@ -85,12 +85,12 @@ public enum TestUtils {
     if (TestUtils.isRunUnderSurefire()) {
       System.setOut(new PrintStream(new OutputStream() {
         @Override
-        public void write(int b) throws IOException {
+        public void write(int b) {
         }
       }));
       System.setErr(new PrintStream(new OutputStream() {
         @Override
-        public void write(int b) throws IOException {
+        public void write(int b) {
         }
       }));
     }

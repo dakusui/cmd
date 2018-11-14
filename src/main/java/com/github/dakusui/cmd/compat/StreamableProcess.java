@@ -1,7 +1,7 @@
 package com.github.dakusui.cmd.compat;
 
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ public class StreamableProcess extends Process {
     this.config = requireNonNull(config);
     this.stdout = CompatIoUtils.toStream(this.getInputStream(), config.charset()).peek(config.stdoutConsumer());
     this.stderr = CompatIoUtils.toStream(this.getErrorStream(), config.charset()).peek(config.stderrConsumer());
-    this.stdin = CompatIoUtils.flowControlValve(IoUtils.toStringConsumer(this.getOutputStream(), config.charset()), 100);
+    this.stdin = CompatIoUtils.flowControlValve(StreamUtils.toCloseableStringConsumer(this.getOutputStream(), config.charset()), 100);
     this.selector = createSelector(config, this.stdin(), this.stdout(), this.stderr());
     this.shell = shell;
     this.command = command;
@@ -217,7 +217,7 @@ public class StreamableProcess extends Process {
       );
     }
 
-    Consumer<String> stdoutConsumer() {
+     Consumer<String> stdoutConsumer() {
       return builder.stdoutConsumer;
     }
 
@@ -233,7 +233,7 @@ public class StreamableProcess extends Process {
       return builder.stderrTransformer;
     }
 
-    Charset charset() {
+    public Charset charset() {
       return builder.charset;
     }
 

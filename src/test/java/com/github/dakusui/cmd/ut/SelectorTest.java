@@ -1,7 +1,7 @@
 package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.compat.StreamableQueue;
-import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.compat.Selector;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
@@ -99,13 +99,13 @@ public class SelectorTest extends TestUtils.TestBase {
     StreamableQueue<String> down = new StreamableQueue<>(100);
     Stream<String> up = Stream.concat(TestUtils.list("stdin", 100_000).stream(), Stream.of((String) null)).peek(down);
     new Thread(() -> {
-      up.forEach(IoUtils.nop());
+      up.forEach(StreamUtils.nop());
     }).start();
     new Selector.Builder<String>(
         "UT"
     ).add(
         TestUtils.<String>list("stdout", 100_000).stream(),
-        IoUtils.nop(),
+        StreamUtils.nop(),
         true
     ).add(
         TestUtils.<String>list("stderr", 100_000).stream(),
@@ -122,15 +122,15 @@ public class SelectorTest extends TestUtils.TestBase {
         "UT"
     ).add(
         TestUtils.list("A", sizeA).stream().filter(s -> sleepAndReturn(true)),
-        IoUtils.nop(),
+        StreamUtils.nop(),
         true
     ).add(
         TestUtils.list("B", sizeB).stream().filter(s -> sleepAndReturn(true)),
-        IoUtils.nop(),
+        StreamUtils.nop(),
         true
     ).add(
         TestUtils.list("C", sizeC).stream().filter(s -> sleepAndReturn(false)),
-        IoUtils.nop(),
+        StreamUtils.nop(),
         true
     ).build();
   }

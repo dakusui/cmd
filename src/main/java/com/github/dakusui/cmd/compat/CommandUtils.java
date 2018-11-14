@@ -2,7 +2,7 @@ package com.github.dakusui.cmd.compat;
 
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.exceptions.CommandException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
@@ -78,7 +78,7 @@ public enum CommandUtils {
 
     final Callable<CommandResult> callable = () -> {
       try {
-        cmd.stream().forEach(IoUtils.nop());
+        cmd.stream().forEach(StreamUtils.nop());
         Integer exitValue;
         synchronized (exitValueHolder) {
           while ((exitValue = exitValueHolder.get()) == null) {

@@ -2,7 +2,7 @@ package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.IoUtils;
+import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.compat.StreamableProcess;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Assert;
@@ -201,10 +201,10 @@ public class StreamableProcessTest extends TestUtils.TestBase {
     ).configureStdin(
         stdin.peek(LOGGER::trace)
     ).configureStdout(
-        IoUtils.nop(),
+        StreamUtils.nop(),
         s -> s
     ).configureStderr(
-        IoUtils.nop(),
+        StreamUtils.nop(),
         s -> s
     ).build();
   }

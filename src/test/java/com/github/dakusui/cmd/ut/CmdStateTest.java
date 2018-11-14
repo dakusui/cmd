@@ -16,7 +16,7 @@ public class CmdStateTest extends TestUtils.TestBase {
   public void givenCmdNotStarted$whenExitValue$thenIllegalStateWillBeThrown() {
     Cmd cmd = Cmd.cmd(Shell.local(), "echo hello");
     try {
-      cmd.getStreamableProcess().exitValue();
+      cmd.getProcessStreamer().exitValue();
     } catch (IllegalStateException e) {
       assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<PREPARING>"));
       throw e;
@@ -38,7 +38,7 @@ public class CmdStateTest extends TestUtils.TestBase {
   public void givenCmdNotStarted$whenGetPid$thenIllegalStateWillBeThrown() {
     Cmd cmd = Cmd.cmd(Shell.local(), "echo hello");
     try {
-      cmd.getStreamableProcess().getPid();
+      cmd.getProcessStreamer().getPid();
     } catch (IllegalStateException e) {
       assertThat(e.getMessage(), CoreMatchers.containsString("Current state=<PREPARING>"));
       throw e;

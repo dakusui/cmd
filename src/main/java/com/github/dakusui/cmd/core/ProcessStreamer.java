@@ -1,8 +1,8 @@
 package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.IoUtils.CloseableStringConsumer;
-import com.github.dakusui.cmd.core.IoUtils.RingBuffer;
+import com.github.dakusui.cmd.core.StreamUtils.CloseableStringConsumer;
+import com.github.dakusui.cmd.core.StreamUtils.RingBuffer;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,12 +15,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
-import static com.github.dakusui.cmd.core.IoUtils.toStringConsumer;
+import static com.github.dakusui.cmd.core.StreamUtils.nop;
+import static com.github.dakusui.cmd.core.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -28,17 +33,17 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 public class ProcessStreamer {
-  private static final Logger LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final Process process;
-  private final Charset charset;
-  private final int queueSize;
-  private final Supplier<String> formatter;
-  private final StreamOptions stdoutOptions;
-  private final StreamOptions stderrOptions;
-  private final RingBuffer<String> ringBuffer;
-  private final ExecutorService executorService;
-  private Stream<String> output;
-  private CloseableStringConsumer input;
+  private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
+  private final        Process                 process;
+  private final        Charset                 charset;
+  private final        int                     queueSize;
+  private final        Supplier<String>        formatter;
+  private final        StreamOptions           stdoutOptions;
+  private final        StreamOptions           stderrOptions;
+  private final        RingBuffer<String>      ringBuffer;
+  private final        ExecutorService         executorService;
+  private              Stream<String>          output;
+  private              CloseableStringConsumer input;
 
   /**
    * Drains data from {@code stream} to the underlying process.
@@ -60,6 +65,7 @@ public class ProcessStreamer {
 
   /**
    * Streams data from the underlying process.
+   *
    * @return data stream.
    */
   public Stream<String> stream() {
@@ -107,15 +113,19 @@ public class ProcessStreamer {
     }
   }
 
+  public boolean isAlive() {
+    return this.process.isAlive();
+  }
+
   @Override
   public String toString() {
     return formatter.get();
   }
 
   private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-                          StreamOptions stdoutOptions,
-                          StreamOptions stderrOptions,
-                          int queueSize, int ringBufferSize) {
+      StreamOptions stdoutOptions,
+      StreamOptions stderrOptions,
+      int queueSize, int ringBufferSize) {
     this.process = createProcess(shell, command, cwd, env);
     this.charset = charset;
     this.queueSize = queueSize;
@@ -133,7 +143,7 @@ public class ProcessStreamer {
 
   private synchronized void ensureInputInitialized() {
     if (this.input == null) {
-      this.input = toStringConsumer(this.process.getOutputStream(), this.charset);
+      this.input = toCloseableStringConsumer(this.process.getOutputStream(), this.charset);
     }
   }
 
@@ -143,15 +153,15 @@ public class ProcessStreamer {
    */
   private synchronized void ensureOutputInitialized() {
     if (this.output == null) {
-      this.output = IoUtils.merge(
+      this.output = StreamUtils.merge(
           this.executorService,
           this.queueSize,
           configureStream(
-              IoUtils.stream(this.process.getInputStream(), charset),
+              StreamUtils.stream(this.process.getInputStream(), charset),
               ringBuffer,
               stdoutOptions),
           configureStream(
-              IoUtils.stream(this.process.getErrorStream(), charset),
+              StreamUtils.stream(this.process.getErrorStream(), charset),
               ringBuffer,
               stderrOptions));
     }
@@ -208,15 +218,15 @@ public class ProcessStreamer {
 
   public static class Builder {
 
-    private final Shell shell;
-    private String command;
-    private File cwd;
-    private final Map<String, String> env = new HashMap<>();
-    private StreamOptions stdoutOptions = new StreamOptions(true, "STDOUT", true, true);
-    private StreamOptions stderrOptions = new StreamOptions(true, "STDERR", true, true);
-    private Charset charset = Charset.defaultCharset();
-    private int queueSize = 100;
-    private int ringBufferSize = 100;
+    private final Shell               shell;
+    private       String              command;
+    private       File                cwd;
+    private final Map<String, String> env            = new HashMap<>();
+    private       StreamOptions       stdoutOptions  = new StreamOptions(true, "STDOUT", true, true);
+    private       StreamOptions       stderrOptions  = new StreamOptions(true, "STDERR", true, true);
+    private       Charset             charset        = Charset.defaultCharset();
+    private       int                 queueSize      = 100;
+    private       int                 ringBufferSize = 100;
 
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
@@ -281,15 +291,77 @@ public class ProcessStreamer {
           this.ringBufferSize
       );
     }
+
+    public Mapper asMapper() {
+      ProcessStreamer streamer = this
+          .configureStdout(true, true, true)
+          .configureStderr(true, true, false)
+          .build();
+      return new Mapper() {
+        @Override
+        public Stream<String> apply(Stream<String> stream) {
+          this.streamer().drain(stream);
+          return this.streamer().stream();
+        }
+
+        @Override
+        public ProcessStreamer streamer() {
+          return streamer;
+        }
+      };
+    }
+
+    public Sink asSink() {
+      ProcessStreamer streamer = this
+          .configureStdout(true, true, false)
+          .configureStderr(true, true, false)
+          .build();
+      return new Sink() {
+        @Override
+        public ProcessStreamer streamer() {
+          return streamer;
+        }
+
+        @Override
+        public void accept(Stream<String> stream) {
+          stream.forEach(nop());
+        }
+      };
+    }
+
+    public Source asSource(int numPartitions, Partitioner partitioner) {
+      requireArgument(numPartitions, greaterThan(0));
+      ProcessStreamer streamer = this
+          .configureStdout(true, true, true)
+          .configureStderr(true, true, false)
+          .build();
+      return new Source() {
+        @Override
+        public int size() {
+          return numPartitions;
+        }
+
+        @Override
+        public ProcessStreamer streamer() {
+          return streamer;
+        }
+
+        @Override
+        public Stream<String> apply(int value) {
+          // TODO
+          return null;
+        }
+      };
+    }
   }
 
-  static class StreamOptions {
+  public static class StreamOptions {
     private final boolean logged;
-    private final String loggingTag;
+    private final String  loggingTag;
     private final boolean tailed;
     private final boolean connected;
 
-    StreamOptions(boolean logged, String loggingTag, boolean tailed, boolean connected) {
+    public StreamOptions(boolean logged, String loggingTag, boolean tailed, boolean connected) {
       this.logged = logged;
       this.loggingTag = loggingTag;
       this.tailed = tailed;
@@ -313,10 +385,39 @@ public class ProcessStreamer {
     }
   }
 
+  public interface Base extends AutoCloseable {
+    ProcessStreamer streamer();
+
+    @Override
+    default void close() {
+      this.streamer().close();
+    }
+  }
+
+  public interface Partitioner {
+    int apply(String s);
+  }
+
+
+  public interface Mapper extends Base, Function<Stream<String>, Stream<String>> {
+  }
+
+  public interface Reducer extends Base, BiFunction<String, String, String> {
+
+  }
+
+  public interface Source extends Base, IntFunction<Stream<String>> {
+    int size();
+  }
+
+  public interface Sink extends Base, Consumer<Stream<String>> {
+
+  }
+
   public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-                                                      StreamOptions stdoutOptions,
-                                                      StreamOptions stderrOptions,
-                                                      int queueSize, int ringBufferSize) {
+      StreamOptions stdoutOptions,
+      StreamOptions stderrOptions,
+      int queueSize, int ringBufferSize) {
     return new ProcessStreamer(shell, command, cwd, env, charset, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
       @Override
       public void drain(Stream<String> stream) {

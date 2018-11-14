@@ -1,10 +1,12 @@
 package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.Cmd;
+import com.github.dakusui.cmd.compat.CompatCmdImpl;
 import com.github.dakusui.cmd.compat.StreamableQueue;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 import com.github.dakusui.cmd.utils.TestUtils;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -22,12 +24,14 @@ import static com.github.dakusui.cmd.Cmd.cat;
 import static com.github.dakusui.cmd.Cmd.cmd;
 import static com.github.dakusui.cmd.Cmd.local;
 import static com.github.dakusui.cmd.Shell.ssh;
-import static com.github.dakusui.cmd.utils.TestUtils.allOf;
 import static com.github.dakusui.cmd.utils.TestUtils.matcherBuilder;
+import static com.github.dakusui.crest.Crest.allOf;
+import static com.github.dakusui.crest.Crest.asInteger;
+import static com.github.dakusui.crest.Crest.asString;
+import static com.github.dakusui.crest.Crest.assertThat;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 public class CmdTest extends TestUtils.TestBase {
 
@@ -53,9 +57,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out.stream().sorted().collect(toList()),
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -100,9 +104,9 @@ public class CmdTest extends TestUtils.TestBase {
     ).forEach(
         out::add
     );
-    assertThat(
+    Assert.assertThat(
         out,
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -133,9 +137,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out,
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -163,9 +167,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out,
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -202,9 +206,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out,
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -224,39 +228,21 @@ public class CmdTest extends TestUtils.TestBase {
     );
   }
 
-  @Test(timeout = 3_000)
+  @Test(timeout = 1_000)
   public void streamExample2() {
-    cmd(
-        "cat -n"
-    ).readFrom(
-        Stream.of("Hello", "world")
-    ).stream(
-    ).peek(
-        System.out::println
-    ).forEach(
-        out::add
-    );
+    cmd("cat -n")
+        .readFrom(Stream.of("Hello", "world"))
+        .stream()
+        .peek(System.out::println)
+        .forEach(out::add);
 
     assertThat(
         out,
         allOf(
-            TestUtils.<List<String>, Integer>matcherBuilder(
-                "size", List::size
-            ).check(
-                "==2", size -> size == 2
-            ).build(),
-            TestUtils.<List<String>, String>matcherBuilder(
-                "elementAt0", o -> o.get(0)
-            ).check(
-                "contains'1\tHello'", s -> s.contains("1\tHello")
-            ).build(),
-            TestUtils.<List<String>, String>matcherBuilder(
-                "elementAt1", o -> o.get(1)
-            ).check(
-                "contains'2\tworld'", s -> s.contains("2\tworld")
-            ).build()
-        )
-    );
+            asInteger("size").equalTo(2).$(),
+            asString("get", 0).containsString("1\tHello").$(),
+            asString("get", 1).containsString("2\tworld").$()
+        ));
   }
 
   @Test(timeout = 3_000)
@@ -274,9 +260,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out,
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -318,9 +304,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out.stream().sorted().collect(toList()),
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -369,9 +355,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out.stream().sorted().collect(toList()),
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -414,9 +400,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out.stream().sorted().collect(toList()),
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -459,9 +445,9 @@ public class CmdTest extends TestUtils.TestBase {
         .peek(System.out::println)
         .forEach(out::add);
 
-    assertThat(
+    Assert.assertThat(
         out,
-        allOf(
+        TestUtils.allOf(
             TestUtils.<List<String>, Integer>matcherBuilder(
                 "size", List::size
             ).check(
@@ -493,9 +479,9 @@ public class CmdTest extends TestUtils.TestBase {
         out::add
     );
 
-    assertThat(
+    Assert.assertThat(
         out.stream().sorted().collect(toList()),
-        allOf(
+        TestUtils.allOf(
             matcherBuilder(
                 "size", (Function<List<String>, Integer>) List::size
             ).check(
@@ -546,7 +532,7 @@ public class CmdTest extends TestUtils.TestBase {
           ),
           2_000
       )) {
-        ((Cmd.Impl) cmd).dump();
+        ((CompatCmdImpl) cmd).dump();
         throw new RuntimeException();
       }
     }

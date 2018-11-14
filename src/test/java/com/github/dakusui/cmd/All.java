@@ -1,7 +1,7 @@
 package com.github.dakusui.cmd;
 
 import com.github.dakusui.cmd.ut.*;
-import com.github.dakusui.cmd.ut.io.IoUtilsTest;
+import com.github.dakusui.cmd.ut.io.StreamUtilsTest;
 import com.github.dakusui.cmd.ut.io.LineReaderTest;
 import com.github.dakusui.cmd.ut.io.RingBufferedLineWriterTest;
 import org.junit.runner.RunWith;
@@ -12,7 +12,7 @@ import org.junit.runners.Suite;
     CmdStateTest.class,
     CmdTest.class,
     CommandUtilsTest.class,
-    IoUtilsTest.class,
+    StreamUtilsTest.class,
     LineReaderTest.class,
     PipelinedCmdTest.class,
     SelectorTest.class,
