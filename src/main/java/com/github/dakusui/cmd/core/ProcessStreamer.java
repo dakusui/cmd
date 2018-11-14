@@ -15,15 +15,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
-import static com.github.dakusui.cmd.core.StreamUtils.nop;
 import static com.github.dakusui.cmd.core.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -50,14 +46,16 @@ public class ProcessStreamer {
    * @param stream A data stream to be drained to the process.
    */
   public void drain(Stream<String> stream) {
+    requireNonNull(stream);
     ensureInputInitialized();
-    requireNonNull(stream).forEach(this.input::writeLine);
+    stream.forEach(this.input::writeLine);
+    this.close();
   }
 
   /**
    * Closes {@code stdin} of this process.
    */
-  public void close() {
+  private void close() {
     ensureInputInitialized();
     this.input.close();
   }
@@ -298,91 +296,6 @@ public class ProcessStreamer {
       );
     }
 
-    public Mapper asMapper() {
-      ProcessStreamer streamer = this
-          .configureStdout(true, true, true)
-          .configureStderr(true, true, false)
-          .build();
-      return new Mapper() {
-        @Override
-        public Stream<String> apply(Stream<String> stream) {
-          this.streamer().drain(stream);
-          return this.streamer().stream();
-        }
-
-        @Override
-        public ProcessStreamer streamer() {
-          return streamer;
-        }
-      };
-    }
-
-    public Reducer asReducer(Function<Stream<String>, Stream<String>> grouper) {
-      ProcessStreamer streamer = this
-          .configureStdout(true, true, true)
-          .configureStderr(true, true, false)
-          .build();
-      return new Reducer() {
-        @Override
-        public Stream<String> apply(Stream<String> stream) {
-          this.streamer().drain(stream);
-          return this.streamer().stream();
-        }
-
-        @Override
-        public String groupId(String record) {
-          return null;
-        }
-
-        @Override
-        public ProcessStreamer streamer() {
-          return streamer;
-        }
-      };
-    }
-
-    public Sink asSink() {
-      ProcessStreamer streamer = this
-          .configureStdout(true, true, false)
-          .configureStderr(true, true, false)
-          .build();
-      return new Sink() {
-        @Override
-        public ProcessStreamer streamer() {
-          return streamer;
-        }
-
-        @Override
-        public void accept(Stream<String> stream) {
-          stream.forEach(nop());
-        }
-      };
-    }
-
-    public Source asSource(int numPartitions, Partitioner partitioner) {
-      requireArgument(numPartitions, greaterThan(0));
-      ProcessStreamer streamer = this
-          .configureStdout(true, true, true)
-          .configureStderr(true, true, false)
-          .build();
-      return new Source() {
-        @Override
-        public int size() {
-          return numPartitions;
-        }
-
-        @Override
-        public ProcessStreamer streamer() {
-          return streamer;
-        }
-
-        @Override
-        public Stream<String> apply(int value) {
-          // TODO
-          return null;
-        }
-      };
-    }
   }
 
   public static class StreamOptions {
@@ -413,35 +326,6 @@ public class ProcessStreamer {
     boolean isConnected() {
       return connected;
     }
-  }
-
-  public interface Base extends AutoCloseable {
-    ProcessStreamer streamer();
-
-    @Override
-    default void close() {
-      this.streamer().close();
-    }
-  }
-
-  public interface Partitioner {
-    int apply(String s);
-  }
-
-
-  public interface Mapper extends Base, Function<Stream<String>, Stream<String>> {
-  }
-
-  public interface Reducer extends Base, Function<Stream<String>, Stream<String>> {
-    String groupId(String record);
-  }
-
-  public interface Source extends Base, IntFunction<Stream<String>> {
-    int size();
-  }
-
-  public interface Sink extends Base, Consumer<Stream<String>> {
-
   }
 
   public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,

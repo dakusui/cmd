@@ -23,10 +23,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     assertThat(
         runProcessStreamer(
             () -> new ProcessStreamer.Builder(Shell.local(), "cat -n").build(),
-            ps -> {
-              ps.drain(Stream.of("a", "b", "c"));
-              ps.close();
-            }),
+            ps -> ps.drain(Stream.of("a", "b", "c"))),
         asListOf(String.class,
             sublistAfter(containsString("a"))
                 .after(containsString("b"))
@@ -43,14 +40,12 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
                 .queueSize(1)
                 .ringBufferSize(1)
                 .build(),
-            ps -> {
-              ps.drain(Stream.of("a", "b", "c"));
-              ps.close();
-            }),
+            ps -> ps.drain(Stream.of("a", "b", "c", "d", "e", "f", "g", "h"))),
         asListOf(String.class,
             sublistAfter(containsString("a"))
                 .after(containsString("b"))
-                .after(containsString("c")).$())
+                .after(containsString("c"))
+                .after(containsString("h")).$())
             .isEmpty().$());
   }
 
@@ -61,7 +56,6 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
             () -> new ProcessStreamer.Builder(Shell.local(), "echo hello world && echo !").build(),
             ps -> {
               ps.drain(Stream.of("a", "b", "c"));
-              ps.close();
             }),
         asListOf(String.class,
             sublistAfterElement("hello world").afterElement("!").$()).$());
@@ -73,17 +67,29 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
       ProcessStreamer ps = new ProcessStreamer.Builder(
           Shell.local(),
           "echo hello world && _Echo hello!").build();
-      private int exitCode;
+      private int          exitCode;
       private List<String> out = new LinkedList<>();
 
+      /*
+       * This method is reflectively called.
+       */
+      @SuppressWarnings("unused")
       public int exitCode() {
         return this.exitCode;
       }
 
+      /*
+       * This method is reflectively called.
+       */
+      @SuppressWarnings("unused")
       public List<String> out() {
         return this.out;
       }
 
+      /*
+       * This method is reflectively called.
+       */
+      @SuppressWarnings("unused")
       public ProcessStreamer processStreamer() {
         return this.ps;
       }
@@ -110,6 +116,12 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     );
   }
 
+  @Test
+  public void test() {
+
+  }
+
+
   private List<String> runProcessStreamer(Supplier<ProcessStreamer> processStreamerSupplier, Consumer<ProcessStreamer> dataDrainer) throws InterruptedException {
     ProcessStreamer ps = processStreamerSupplier.get();
     dataDrainer.accept(ps);
@@ -123,5 +135,4 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     }
     return out;
   }
-
 }
