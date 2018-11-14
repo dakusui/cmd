@@ -1,6 +1,5 @@
 package com.github.dakusui.cmd.ut.io;
 
-import com.github.dakusui.cmd.core.ConcurrencyUtils;
 import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
@@ -11,6 +10,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
+import static com.github.dakusui.cmd.core.ConcurrencyUtils.waitWhile;
 import static com.github.dakusui.crest.Crest.allOf;
 import static com.github.dakusui.crest.Crest.anyOf;
 import static com.github.dakusui.crest.Crest.asInteger;
@@ -61,14 +62,14 @@ public class StreamUtilsTest extends TestUtils.TestBase {
   }
 
   @Test
-  public void test() {
+  public void givenData$whenTee$thenAllDataStreamed() {
     List<String> out = synchronizedList(new LinkedList<>());
     int numDownstreams = 2;
     AtomicInteger remaining = new AtomicInteger(numDownstreams);
     ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
     StreamUtils.<String>tee(
         newFixedThreadPool(2),
-        Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), 2, 1)
+        Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 1)
         .forEach(
             s -> threadPoolForTestSide.submit(
                 () -> {
@@ -76,11 +77,11 @@ public class StreamUtilsTest extends TestUtils.TestBase {
                       x -> System.out.println(Thread.currentThread().getId() + ":" + x)
                   );
                   synchronized (remaining) {
-                    ConcurrencyUtils.updateAndNotifyAll(remaining, AtomicInteger::decrementAndGet);
+                    updateAndNotifyAll(remaining, AtomicInteger::decrementAndGet);
                   }
                 }));
     synchronized (remaining) {
-      ConcurrencyUtils.waitWhile(remaining, c -> c.get() > 0);
+      waitWhile(remaining, c -> c.get() > 0);
     }
     assertThat(
         out,
@@ -105,7 +106,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
   }
 
   @Test
-  public void testPartition() {
+  public void givenData$whenPartition$thenAllDataStreamedCorrectly() {
     List<String> out = synchronizedList(new LinkedList<>());
     int numDownstreams = 2;
     AtomicInteger remaining = new AtomicInteger(numDownstreams);
@@ -120,11 +121,11 @@ public class StreamUtilsTest extends TestUtils.TestBase {
                       x -> System.out.println(Thread.currentThread().getId() + ":" + x)
                   );
                   synchronized (remaining) {
-                    ConcurrencyUtils.updateAndNotifyAll(remaining, AtomicInteger::decrementAndGet);
+                    updateAndNotifyAll(remaining, AtomicInteger::decrementAndGet);
                   }
                 }));
     synchronized (remaining) {
-      ConcurrencyUtils.waitWhile(remaining, c -> c.get() > 0);
+      waitWhile(remaining, c -> c.get() > 0);
     }
     assertThat(
         out,

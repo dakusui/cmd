@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -113,6 +112,13 @@ public class ProcessStreamer {
     }
   }
 
+  /**
+   * Returns {@code true} if the subprocess represented by this object is still
+   * alive, {@code false} otherwise.
+   *
+   * @return {@code true} - this process is alive / {@code false} otherwise.
+   * @see Process#isAlive()
+   */
   public boolean isAlive() {
     return this.process.isAlive();
   }
@@ -311,6 +317,30 @@ public class ProcessStreamer {
       };
     }
 
+    public Reducer asReducer(Function<Stream<String>, Stream<String>> grouper) {
+      ProcessStreamer streamer = this
+          .configureStdout(true, true, true)
+          .configureStderr(true, true, false)
+          .build();
+      return new Reducer() {
+        @Override
+        public Stream<String> apply(Stream<String> stream) {
+          this.streamer().drain(stream);
+          return this.streamer().stream();
+        }
+
+        @Override
+        public String groupId(String record) {
+          return null;
+        }
+
+        @Override
+        public ProcessStreamer streamer() {
+          return streamer;
+        }
+      };
+    }
+
     public Sink asSink() {
       ProcessStreamer streamer = this
           .configureStdout(true, true, false)
@@ -402,8 +432,8 @@ public class ProcessStreamer {
   public interface Mapper extends Base, Function<Stream<String>, Stream<String>> {
   }
 
-  public interface Reducer extends Base, BiFunction<String, String, String> {
-
+  public interface Reducer extends Base, Function<Stream<String>, Stream<String>> {
+    String groupId(String record);
   }
 
   public interface Source extends Base, IntFunction<Stream<String>> {
