@@ -48,7 +48,9 @@ public class ProcessStreamer {
   public void drain(Stream<String> stream) {
     requireNonNull(stream);
     ensureInputInitialized();
+    LOGGER.debug("Begin draining");
     stream.forEach(this.input::writeLine);
+    LOGGER.debug("End draining");
     this.close();
   }
 
@@ -56,8 +58,10 @@ public class ProcessStreamer {
    * Closes {@code stdin} of this process.
    */
   private void close() {
+    LOGGER.debug("Closing");
     ensureInputInitialized();
     this.input.close();
+    LOGGER.debug("Closed");
   }
 
   /**
@@ -147,7 +151,9 @@ public class ProcessStreamer {
 
   private synchronized void ensureInputInitialized() {
     if (this.input == null) {
+      LOGGER.debug("Begin initialization (input)");
       this.input = toCloseableStringConsumer(this.process.getOutputStream(), this.charset);
+      LOGGER.debug("End initialization (input)");
     }
   }
 
@@ -157,6 +163,7 @@ public class ProcessStreamer {
    */
   private synchronized void ensureOutputInitialized() {
     if (this.output == null) {
+      LOGGER.debug("Begin initialization (output)");
       this.output = StreamUtils.merge(
           this.executorService,
           this.queueSize,
@@ -168,6 +175,7 @@ public class ProcessStreamer {
               StreamUtils.stream(this.process.getErrorStream(), charset),
               ringBuffer,
               stderrOptions));
+      LOGGER.debug("End initialization (output)");
     }
   }
 
