@@ -2,6 +2,7 @@ package com.github.dakusui.cmd.utils;
 
 import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -21,8 +22,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 
@@ -63,6 +67,31 @@ public enum TestUtils {
       ret.add(String.format("%s-%s", prefix, i));
     }
     return ret;
+  }
+
+  public static Stream<String> dataStream(String prefix, int num) {
+    return IntStream.range(0, num).mapToObj(i -> String.format("%s-%s", prefix, i));
+  }
+
+  public static Stream<String> merge(List<Stream<String>> streams) {
+    return StreamUtils.merge(newFixedThreadPool(4), 100, streams.toArray(new Stream[0]));
+  }
+
+  public static List<Stream<String>> partition(Stream<String> in) {
+    return StreamUtils.partition(
+        newFixedThreadPool(4),
+        in,
+        4,
+        100,
+        String::hashCode);
+  }
+
+  public static List<Stream<String>> tee(Stream<String> in) {
+    return StreamUtils.tee(
+        newFixedThreadPool(4),
+        in,
+        4,
+        100);
   }
 
   /**

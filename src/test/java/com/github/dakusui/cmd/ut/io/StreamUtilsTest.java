@@ -12,12 +12,7 @@ import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.waitWhile;
-import static com.github.dakusui.crest.Crest.allOf;
-import static com.github.dakusui.crest.Crest.anyOf;
-import static com.github.dakusui.crest.Crest.asInteger;
-import static com.github.dakusui.crest.Crest.asListOf;
-import static com.github.dakusui.crest.Crest.assertThat;
-import static com.github.dakusui.crest.Crest.sublistAfterElement;
+import static com.github.dakusui.crest.Crest.*;
 import static java.util.Arrays.asList;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.Executors.newFixedThreadPool;
@@ -59,6 +54,22 @@ public class StreamUtilsTest extends TestUtils.TestBase {
                 asListOf(String.class, sublistAfterElement("A").afterElement("H").$()).isEmpty().$(),
                 asListOf(String.class, sublistAfterElement("a").afterElement("h").$()).isEmpty().$()),
             asInteger("size").eq(16).$()));
+  }
+
+  @Test(timeout = 10_000)
+  public void givenUnbalancedTwoStreams$whenMerge$thenOutputIsInOrder() {
+    List<String> out = new LinkedList<>();
+    StreamUtils.merge(
+        newFixedThreadPool(2),
+        10_000,
+        TestUtils.dataStream("data", 100_000),
+        Stream.empty())
+        .peek(System.out::println)
+        .forEach(out::add);
+
+    assertThat(
+        out,
+        asInteger("size").eq(100000).$());
   }
 
   @Test
@@ -113,7 +124,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
     StreamUtils.partition(
         newFixedThreadPool(2),
-        Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 1, String::hashCode)
+        Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 100, String::hashCode)
         .forEach(
             s -> threadPoolForTestSide.submit(
                 () -> {
@@ -135,4 +146,37 @@ public class StreamUtilsTest extends TestUtils.TestBase {
         )
     );
   }
+
+  @Test(timeout = 100_000)
+  public void partitionAndThenMerge100_000() {
+    TestUtils.merge(
+        TestUtils.partition(TestUtils.dataStream("data", 100_000))
+    ).forEach(System.out::println);
+  }
+
+  @Test(timeout = 10_000)
+  public void partitionAndThenMerge100() {
+    TestUtils.merge(
+        TestUtils.partition(TestUtils.dataStream("data", 100))
+    ).forEach(System.out::println);
+  }
+
+
+  @Test(timeout = 10_000)
+  public void partition100() {
+    TestUtils.partition(TestUtils.dataStream("data", 100))
+        .forEach(s -> s.forEach(System.out::println));
+  }
+
+  @Test(timeout = 10_000)
+  public void tee100() {
+    TestUtils.tee(TestUtils.dataStream("data", 100))
+        .forEach(s -> s.forEach(System.out::println));
+  }
+
+  @Test(timeout = 10_000)
+  public void data100() {
+    TestUtils.dataStream("data", 100).forEach(System.out::println);
+  }
+
 }

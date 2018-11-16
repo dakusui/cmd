@@ -1,8 +1,9 @@
 package com.github.dakusui.cmd.core;
 
 import com.github.dakusui.cmd.exceptions.Exceptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -38,6 +39,7 @@ import static java.util.stream.Collectors.toList;
 
 public enum StreamUtils {
   ;
+  private static final Logger LOGGER = LoggerFactory.getLogger(StreamUtils.class);
 
   /**
    * Returns a consumer which writes given string objects to an {@code OutputStream}
@@ -99,8 +101,7 @@ public enum StreamUtils {
       int num,
       int queueSize,
       Function<T, Integer> partitioner) {
-    return split(threadPool, in, num, queueSize,
-        (blockingQueues, t) -> singletonList(blockingQueues.get(partitioner.apply(t) % num)));
+    return split(threadPool, in, num, queueSize, (blockingQueues, t) -> singletonList(blockingQueues.get(partitioner.apply(t) % num)));
   }
 
   @SuppressWarnings("unchecked")
@@ -166,11 +167,11 @@ public enum StreamUtils {
     Set<Object> sentinels = new HashSet<>();
 
     AtomicInteger remainingStreams = new AtomicInteger(streams.length);
-    for (Stream<T> a : streams) {
+    for (Stream<T> each : streams) {
       Object sentinel = createSentinel(remainingStreams.get());
       sentinels.add(sentinel);
       threadPool.submit(
-          () -> Stream.concat(a, Stream.of(sentinel))
+          () -> Stream.concat(each, Stream.of(sentinel))
               .forEach(e -> {
                 synchronized (remainingStreams) {
                   updateAndNotifyAll(remainingStreams, AtomicInteger::decrementAndGet);
@@ -267,32 +268,8 @@ public enum StreamUtils {
     }
   }
 
-  private static Iterator<String> toIterator(BufferedReader br) {
-    return new Iterator<String>() {
-      String next = IoUtils.readLineFrom(br);
-
-      @Override
-      public boolean hasNext() {
-        return this.next != null;
-      }
-
-      @Override
-      public String next() {
-        try {
-          return this.next;
-        } finally {
-          this.next = IoUtils.readLineFrom(br);
-        }
-      }
-    };
-  }
-
   public static Stream<String> stream(InputStream is, Charset charset) {
-    return toStream(IoUtils.bufferedReader(is, charset));
-  }
-
-  private static Stream<String> toStream(BufferedReader br) {
-    return StreamSupport.stream(((Iterable<String>) () -> toIterator(br)).spliterator(), false);
+    return IoUtils.bufferedReader(is, charset).lines();
   }
 
   public interface RingBuffer<E> {

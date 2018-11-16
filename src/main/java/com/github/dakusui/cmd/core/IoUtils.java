@@ -27,48 +27,23 @@ public enum IoUtils {
    * </pre>
    */
   static BufferedReader bufferedReader(InputStream is, Charset charset) {
-    return new BufferedReader(new InputStreamReader(is, charset));
-  }
-
-  static String readLineFrom(BufferedReader br) {
-    try {
-      return br.readLine();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    return new BoundedBufferedReader(new InputStreamReader(is, charset));
   }
 
   static class BoundedBufferedReader extends BufferedReader
   {
-    private static final int DEFAULT_MAX_LINES = 1024;			//Max lines per file
     private static final int DEFAULT_MAX_LINE_LENGTH = 1024;	//Max bytes per line
 
-    private int readerMaxLines;
-    private int readerMaxLineLen;
-    private int currentLine = 1;
-
-    public BoundedBufferedReader(InputStreamReader reader, int maxLines, int maxLineLen)
-    {
-      super(reader);
-      if ((maxLines<=0) || (maxLineLen<=0)) throw new IllegalArgumentException("BoundedBufferedReader - maxLines and maxLineLen must be greater than 0");
-
-      readerMaxLines = maxLines;
-      readerMaxLineLen = maxLineLen;
-    }
+    private final int readerMaxLineLen;
 
     public BoundedBufferedReader(InputStreamReader reader)
     {
       super(reader);
-      readerMaxLines = DEFAULT_MAX_LINES;
       readerMaxLineLen = DEFAULT_MAX_LINE_LENGTH;
     }
 
     public String readLine() throws IOException
     {
-      //Check readerMaxLines limit
-      if (currentLine > readerMaxLines) throw new IOException("BoundedBufferedReader - Line read limit has been reached.");
-      currentLine++;
-
       int currentPos=0;
       char[] data=new char[readerMaxLineLen];
       final int CR = 13;
