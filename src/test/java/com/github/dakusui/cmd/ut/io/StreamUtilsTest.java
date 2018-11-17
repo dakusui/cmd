@@ -11,7 +11,6 @@ import org.junit.runner.RunWith;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -195,7 +194,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
     public void partition100m() {
       new Merger.Builder<>(TestUtils.partition(dataStream("data", 100))).build()
-          .forEach(System.out::println);
+          .merge().forEach(System.out::println);
     }
 
     @Test(timeout = 2_000)
@@ -203,13 +202,13 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
       System.out.println(streams);
       new Merger.Builder<>(streams).build()
-          .forEach(System.out::println);
+          .merge().forEach(System.out::println);
     }
 
     @Test(timeout = 10_000)
     public void partition100_000m() {
       new Merger.Builder<>(TestUtils.partition(dataStream("data", 100_000))).build()
-          .forEach(System.out::println);
+          .merge().forEach(System.out::println);
     }
 
 
@@ -291,9 +290,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
     public void testPartitioner() {
       new Partitioner.Builder<>(dataStream("A", 1_000))
-          .threadPoolFactory(() -> Executors.newFixedThreadPool(20))
-          .numQueues(2).build()
-          .forEach(System.out::println);
+          .build().forEach(System.out::println);
     }
   }
 
@@ -311,6 +308,15 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       TestUtils.merge(
           TestUtils.partition(dataStream("data", 100))
       ).forEach(System.out::println);
+    }
+
+    @Test(timeout = 10_000)
+    public void partitionerAndThenMerger() {
+      new Merger.Builder<>(
+          new Partitioner.Builder<>(dataStream("A", 100_000)).build().partition()
+      ).build()
+          .merge()
+          .forEach(System.out::println);
     }
   }
 }

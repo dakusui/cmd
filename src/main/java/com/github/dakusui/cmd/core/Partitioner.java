@@ -24,6 +24,7 @@ public interface Partitioner<T> extends Connector<T> {
           .threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1));
     }
 
+
     public Builder<T> partitioningFunction(Function<T, Integer> partitioningFunction) {
       this.partitioningFunction = requireNonNull(partitioningFunction);
       return this;
@@ -45,7 +46,7 @@ public interface Partitioner<T> extends Connector<T> {
     }
 
     @Override
-    protected List<Stream<T>> streams() {
+    public List<Stream<T>> streams() {
       return this.partition();
     }
 

@@ -50,7 +50,7 @@ public interface Merger<T> extends Connector<T> {
     }
 
     @Override
-    protected List<Stream<T>> streams() {
+    public List<Stream<T>> streams() {
       return this.streams;
     }
   }

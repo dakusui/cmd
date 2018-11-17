@@ -33,9 +33,11 @@ public interface Connector<T> {
 
     @Override
     public void forEach(Consumer<T> consumer) {
-      ExecutorService threadPool = threadPool();
-      AtomicInteger remaining = new AtomicInteger(streams().size());
-      streams().forEach(
+      Connector.Base<T> connector = this;
+      int numDownstreams = numQueues();
+      ExecutorService threadPool = Executors.newFixedThreadPool(numDownstreams);
+      AtomicInteger remaining = new AtomicInteger(numDownstreams);
+      connector.streams().forEach(
           s -> threadPool.submit(
               () -> {
                 s.forEach(consumer);
@@ -50,19 +52,19 @@ public interface Connector<T> {
       }
     }
 
-    protected int numQueues() {
+    int numQueues() {
       return this.numQueues;
     }
 
-    protected int eachQueueSize() {
+    int eachQueueSize() {
       return this.eachQueueSize;
     }
 
-    protected ExecutorService threadPool() {
+    ExecutorService threadPool() {
       return this.threadPool;
     }
 
-    abstract protected List<Stream<T>> streams();
+    abstract public List<Stream<T>> streams();
   }
 
   abstract class BaseBuilder<T, C extends Connector<T>, B extends BaseBuilder<T, C, B>> {

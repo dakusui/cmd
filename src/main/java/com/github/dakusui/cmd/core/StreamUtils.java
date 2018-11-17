@@ -104,8 +104,8 @@ public enum StreamUtils {
       Function<T, Integer> partitioner) {
     return split(
         threadPool, in, numQueues, eachQueueSize,
-        (blockingQueues, t) -> singletonList(blockingQueues.get(
-            abs(partitioner.apply(t)) % numQueues)));
+        (blockingQueues, each) ->
+            singletonList(blockingQueues.get(abs(partitioner.apply(each)) % numQueues)));
   }
 
   @SuppressWarnings("unchecked")
