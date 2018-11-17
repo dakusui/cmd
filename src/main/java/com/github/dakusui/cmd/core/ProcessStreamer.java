@@ -29,26 +29,19 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 public class ProcessStreamer {
-  private final InputStream stderr;
-  private final InputStream stdout;
-
-  enum Type {
-    PIPE,
-    SOURCE,
-    SINK;
-  }
-
-  private static final Logger LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final Process process;
-  private final Charset charset;
-  private final int queueSize;
-  private final Supplier<String> formatter;
-  private final StreamOptions stdoutOptions;
-  private final StreamOptions stderrOptions;
-  private final RingBuffer<String> ringBuffer;
-  private final ExecutorService executorService;
-  private Stream<String> output;
-  private CloseableStringConsumer input;
+  private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
+  private final        InputStream             stderr;
+  private final        InputStream             stdout;
+  private final        Process                 process;
+  private final        Charset                 charset;
+  private final        int                     queueSize;
+  private final        Supplier<String>        formatter;
+  private final        StreamOptions           stdoutOptions;
+  private final        StreamOptions           stderrOptions;
+  private final        RingBuffer<String>      ringBuffer;
+  private final        ExecutorService         executorService;
+  private              Stream<String>          output;
+  private              CloseableStringConsumer input;
 
   /**
    * Drains data from {@code stream} to the underlying process.
@@ -57,7 +50,6 @@ public class ProcessStreamer {
    */
   public void drain(Stream<String> stream) {
     requireNonNull(stream);
-    ensureInputInitialized();
     LOGGER.debug("Begin draining");
     stream.forEach(this.input::writeLine);
     LOGGER.debug("End draining");
@@ -69,7 +61,6 @@ public class ProcessStreamer {
    */
   private void close() {
     LOGGER.debug("Closing");
-    ensureInputInitialized();
     this.input.close();
     LOGGER.debug("Closed");
   }
@@ -141,9 +132,9 @@ public class ProcessStreamer {
   }
 
   private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-                          StreamOptions stdoutOptions,
-                          StreamOptions stderrOptions,
-                          int queueSize, int ringBufferSize) {
+      StreamOptions stdoutOptions,
+      StreamOptions stderrOptions,
+      int queueSize, int ringBufferSize) {
     this.process = createProcess(shell, command, cwd, env);
     this.stdout = this.process.getInputStream();
     this.stderr = this.process.getErrorStream();
@@ -159,6 +150,7 @@ public class ProcessStreamer {
       }
     };
     this.executorService = Executors.newFixedThreadPool(3);
+    this.ensureInputInitialized();
   }
 
   private synchronized void ensureInputInitialized() {
@@ -242,15 +234,15 @@ public class ProcessStreamer {
 
   public static class Builder {
 
-    private final Shell shell;
-    private String command;
-    private File cwd;
-    private final Map<String, String> env = new HashMap<>();
-    private StreamOptions stdoutOptions = new StreamOptions(true, "STDOUT", true, true);
-    private StreamOptions stderrOptions = new StreamOptions(true, "STDERR", true, true);
-    private Charset charset = Charset.defaultCharset();
-    private int queueSize = 5000;
-    private int ringBufferSize = 100;
+    private final Shell               shell;
+    private       String              command;
+    private       File                cwd;
+    private final Map<String, String> env            = new HashMap<>();
+    private       StreamOptions       stdoutOptions  = new StreamOptions(true, "STDOUT", true, true);
+    private       StreamOptions       stderrOptions  = new StreamOptions(true, "STDERR", true, true);
+    private       Charset             charset        = Charset.defaultCharset();
+    private       int                 queueSize      = 5000;
+    private       int                 ringBufferSize = 100;
 
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
@@ -320,7 +312,7 @@ public class ProcessStreamer {
 
   public static class StreamOptions {
     private final boolean logged;
-    private final String loggingTag;
+    private final String  loggingTag;
     private final boolean tailed;
     private final boolean connected;
 
@@ -349,9 +341,9 @@ public class ProcessStreamer {
   }
 
   public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-                                                      StreamOptions stdoutOptions,
-                                                      StreamOptions stderrOptions,
-                                                      int queueSize, int ringBufferSize) {
+      StreamOptions stdoutOptions,
+      StreamOptions stderrOptions,
+      int queueSize, int ringBufferSize) {
     return new ProcessStreamer(shell, command, cwd, env, charset, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
       @Override
       public void drain(Stream<String> stream) {

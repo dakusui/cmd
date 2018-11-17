@@ -13,11 +13,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
 import static com.github.dakusui.crest.Crest.allOf;
 import static com.github.dakusui.crest.Crest.asInteger;
 import static com.github.dakusui.crest.Crest.asListOf;
@@ -27,18 +29,17 @@ import static com.github.dakusui.crest.Crest.call;
 import static com.github.dakusui.crest.Crest.sublistAfter;
 import static com.github.dakusui.crest.Crest.sublistAfterElement;
 import static com.github.dakusui.crest.utils.printable.Predicates.containsString;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 @RunWith(Enclosed.class)
 public class ProcessStreamerTest extends TestUtils.TestBase {
-  public static class Sink {
+  public static class SinkTest {
     @Test(timeout = 3_000)
     public void testSink() throws IOException {
       ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), String.format("cat -n > %s", File.createTempFile("processstreamer-", "tmp")))
           .configureStdout(false, false, false)
           .build();
-      ps.drain(TestUtils.dataStream("data-", 10_000));
+      ps.drain(dataStream("data-", 10_000));
       ps.stream().forEach(System.out::println);
     }
 
@@ -47,11 +48,12 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
       ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), String.format("cat -n > %s", File.createTempFile("processstreamer-", "tmp")))
           .configureStdout(false, false, false)
           .build();
-      ps.drain(TestUtils.dataStream("data-", 100_000));
+      ps.drain(dataStream("data-", 100_000));
       ps.stream().forEach(System.out::println);
     }
   }
-  public static class Source {
+
+  public static class SourceTest {
     @Test(timeout = 20_000)
     public void testSource() {
       ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(),
@@ -69,13 +71,14 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
       ps.drain(Stream.empty());
       ps.stream().forEach(System.out::println);
     }
+
     @Test
     public void givenCommandResultingInError$whenExecuted$thenOutputIsCorrect() {
       class Result {
         ProcessStreamer ps = new ProcessStreamer.Builder(
             Shell.local(),
             "echo hello world && _Echo hello!").build();
-        private int exitCode;
+        private int          exitCode;
         private List<String> out = new LinkedList<>();
 
         /*
@@ -123,6 +126,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
           )
       );
     }
+
     @Test(timeout = 1_000)
     public void givenEchos$whenStream$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       assertThat(
@@ -139,7 +143,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
   /**
    * Pipe test
    */
-  public static class Pipe {
+  public static class PipeTest {
     @Test(timeout = 1_000)
     public void givenCat$whenDrainDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       assertThat(
@@ -153,13 +157,13 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               .isEmpty().$());
     }
 
-    @Test(timeout = 20_000)
+    @Test(timeout = 10_000)
     public void givenCat$whenDrainMediumSizeDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       int lines = 100_000;
       assertThat(
           runProcessStreamer(
               () -> new ProcessStreamer.Builder(Shell.local(), "cat -n").configureStdout(true, true, true).build(),
-              ps -> ps.drain(TestUtils.dataStream("data", lines))),
+              ps -> ps.drain(dataStream("data", lines))),
           allOf(
               asInteger("size").equalTo(lines).$(),
               asListOf(String.class,
@@ -192,7 +196,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     @Test(timeout = 5_000)
     public void testPartitioning() {
       TestUtils.partition(
-          TestUtils.dataStream("A", 10_000)).stream()
+          dataStream("A", 10_000)).stream()
           .map(s -> {
             ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
             ps.drain(s);
@@ -205,7 +209,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     public void testPartitioningAndMerging() {
       TestUtils.merge(
           TestUtils.partition(
-              TestUtils.dataStream("A", 10_000)).stream()
+              dataStream("A", 10_000)).stream()
               .map(s -> {
                 ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
                 ps.drain(s);
@@ -214,13 +218,32 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               .collect(Collectors.toList()))
           .forEach(System.out::println);
     }
+
+    @Test(timeout = 1_000)
+    public void pipeTest() {
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
+      AtomicBoolean isReady = new AtomicBoolean(false);
+      Executors.newSingleThreadExecutor().submit(() -> ps.drain(dataStream("A", 10_000)));
+      ps.stream().forEach(System.out::println);
+    }
+
+    @Test(timeout = 10_000)
+    public void pipeTest100_000() {
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n")
+          .configureStdout(true, true, true)
+          .build();
+      Executors.newSingleThreadExecutor().submit(() -> ps.drain(dataStream("A", 100_000)));
+      ps.stream().forEach(System.out::println);
+    }
   }
 
-  private static List<String> runProcessStreamer(Supplier<ProcessStreamer> processStreamerSupplier, Consumer<ProcessStreamer> dataDrainer) throws InterruptedException {
+  private static List<String> runProcessStreamer(
+      Supplier<ProcessStreamer> processStreamerSupplier,
+      Consumer<ProcessStreamer> dataDrainer) throws InterruptedException {
     ProcessStreamer ps = processStreamerSupplier.get();
-    dataDrainer.accept(ps);
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    executorService.submit(() -> dataDrainer.accept(ps));
     List<String> out = new LinkedList<>();
-    ExecutorService executorService = Executors.newSingleThreadExecutor();
     executorService.submit(() -> ps.stream().forEach(out::add));
     System.out.println(ps.getPid() + "=" + ps.waitFor());
     executorService.shutdown();

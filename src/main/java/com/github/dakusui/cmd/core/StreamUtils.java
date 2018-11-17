@@ -34,6 +34,7 @@ import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.waitWhile;
+import static java.lang.Math.abs;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
@@ -97,57 +98,87 @@ public enum StreamUtils {
   @SuppressWarnings("unchecked")
   public static <T> List<Stream<T>> partition(
       ExecutorService threadPool,
-      Stream<String> in,
-      int num,
-      int queueSize,
+      Stream<T> in,
+      int numQueues,
+      int eachQueueSize,
       Function<T, Integer> partitioner) {
-    return split(threadPool, in, num, queueSize, (blockingQueues, t) -> singletonList(blockingQueues.get(partitioner.apply(t) % num)));
+    return split(
+        threadPool, in, numQueues, eachQueueSize,
+        (blockingQueues, t) -> singletonList(blockingQueues.get(
+            abs(partitioner.apply(t)) % numQueues)));
   }
 
   @SuppressWarnings("unchecked")
   public static <T> List<Stream<T>> tee(
       ExecutorService threadPool,
-      Stream<String> in,
-      int num,
+      Stream<T> in,
+      int numQueues,
       int queueSize) {
-    return split(threadPool, in, num, queueSize, (blockingQueues, t) -> blockingQueues);
+    return split(threadPool, in, numQueues, queueSize, (blockingQueues, t) -> blockingQueues);
   }
 
   @SuppressWarnings("unchecked")
   private static <T> List<Stream<T>> split(
       ExecutorService threadPool,
-      Stream<String> in,
-      int num,
-      int queueSize,
+      Stream<T> in,
+      int numQueues,
+      int eachQueueSize,
       BiFunction<List<BlockingQueue<Object>>, T, List<BlockingQueue<Object>>> selector) {
-    List<BlockingQueue<Object>> queues = IntStream.range(0, requireArgument(num, greaterThan(0)))
-        .mapToObj(i -> new ArrayBlockingQueue<>(queueSize))
+    List<BlockingQueue<Object>> queues = IntStream.range(0, requireArgument(numQueues, greaterThan(0)))
+        .mapToObj(i -> new ArrayBlockingQueue<>(eachQueueSize))
         .collect(toList());
-    Object sentinel = createSentinel(0);
-    AtomicBoolean initialized = new AtomicBoolean(false);
-    threadPool.submit(
-        () -> Stream.concat(in, Stream.of(sentinel))
-            .forEach(e -> {
-                  synchronized (initialized) {
-                    updateAndNotifyAll(initialized, v -> v.set(true));
-                  }
-                  if (e == sentinel)
-                    queues.forEach(q -> putElement(q, e));
-                  else
-                    selector.apply(queues, (T) e).forEach(q -> putElement(q, e));
-                }
-            )
-    );
-    synchronized (initialized) {
-      waitWhile(initialized, AtomicBoolean::get);
-    }
-    return IntStream.range(0, num)
+
+    Object sentinel = initializeSplit(threadPool, in, selector, queues);
+
+    return IntStream.range(0, numQueues)
         .mapToObj(c -> StreamSupport.stream(
             ((Iterable<T>) () -> iteratorFinishingOnSentinel(
                 e -> e == sentinel,
                 blockingDataReader(queues.get(c)))).spliterator(),
             false))
         .collect(toList());
+  }
+
+  private static <T> Object initializeSplit(
+      ExecutorService threadPool,
+      Stream<T> in,
+      BiFunction<List<BlockingQueue<Object>>, T, List<BlockingQueue<Object>>> selector,
+      List<BlockingQueue<Object>> queues) {
+    Object sentinel = createSentinel(0);
+    new Runnable() {
+      final AtomicBoolean initialized = new AtomicBoolean(false);
+
+      @SuppressWarnings("unchecked")
+      public void run() {
+        threadPool.submit(
+            () -> Stream.concat(in, Stream.of(sentinel))
+                .forEach(e -> {
+                      if (e == sentinel)
+                        queues.forEach(q -> {
+                          initializeIfNecessaryAndNotifyAll();
+                          putElement(q, e);
+                        });
+                      else
+                        selector.apply(queues, (T) e).forEach(q -> {
+                          initializeIfNecessaryAndNotifyAll();
+                          putElement(q, e);
+                        });
+                    }
+                )
+        );
+        synchronized (initialized) {
+          waitWhile(initialized, AtomicBoolean::get);
+        }
+      }
+
+      private void initializeIfNecessaryAndNotifyAll() {
+        if (!initialized.get())
+          synchronized (initialized) {
+            updateAndNotifyAll(initialized, v -> v.set(true));
+          }
+      }
+    }.run();
+    return sentinel;
   }
 
   /**
@@ -180,7 +211,14 @@ public enum StreamUtils {
               }));
     }
     synchronized (remainingStreams) {
-      waitWhile(remainingStreams, v -> v.get() > 0);
+      boolean succeeded = false;
+      try {
+        waitWhile(remainingStreams, v -> v.get() > 0);
+        succeeded = true;
+      } finally {
+        if (!succeeded)
+          LOGGER.info("remainingStreams={}", remainingStreams);
+      }
     }
     Supplier<Object> reader = blockingDataReader(queue);
     Set<Object> remainingSentinels = new HashSet<>(sentinels);
