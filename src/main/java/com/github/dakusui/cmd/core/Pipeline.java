@@ -1,65 +1,56 @@
 package com.github.dakusui.cmd.core;
 
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
-
 public interface Pipeline {
-  interface Stage extends AutoCloseable {
-    int partition(String record);
+  interface Stage {
+    interface Factory {
+      Source source();
 
-    @Override
-    void close();
+      Sink sink();
 
-  }
+      Mapper map();
 
-  interface Mapper
-      extends Stage, Function<Stream<String>, Stream<String>> {
-    @Override
-    default int partition(String record) {
-      return record.hashCode();
-    }
+      Reducer reduce();
 
-    default List<Stream<String>> partition(Stream<String> in) {
-      return StreamUtils.partition(
-          Executors.newFixedThreadPool(3),
-          in,
-          3,
-          100,
-          this::partition
-      );
-    }
-    default Mapper map(Mapper mapper) {
-      return new Mapper() {
-        @Override
-        public Stream<String> apply(Stream<String> in) {
-          return mapper.apply(Mapper.this.apply(in));
+      class Builder {
+        Factory build() {
+          return new Factory() {
+            @Override
+            public Source source() {
+              return null;
+            }
+
+            @Override
+            public Sink sink() {
+              return null;
+            }
+
+            @Override
+            public Mapper map() {
+              return null;
+            }
+
+            @Override
+            public Reducer reduce() {
+              return null;
+            }
+          };
         }
-
-        @Override
-        public void close() {
-          Mapper.this.close();
-          mapper.close();
-        }
-      };
+      }
     }
   }
 
-  interface Reducer
-      extends Mapper {
-    Mapper groupBy();
+  interface Source extends Stage {
   }
 
-  interface Source extends Stage, Supplier<Stream<String>> {
+  interface Sink extends Stage {
   }
 
-  interface Sink extends Stage, Consumer<Stream<String>> {
-    @Override
-    default int partition(String record) {
-      return record.hashCode();
-    }
+  interface Pipe extends Stage {
+  }
+
+  interface Mapper extends Pipe {
+  }
+
+  interface Reducer extends Pipe {
   }
 }

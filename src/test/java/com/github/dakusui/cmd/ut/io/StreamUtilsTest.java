@@ -69,7 +69,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
               asInteger("size").eq(16).$()));
     }
 
-    @Test(timeout = 3_000)
+    @Test(timeout = 10_000)
     public void givenTwoMediumSizeStreams$whenMerge$thenOutputIsInOrder() {
       int sizeOfEachStream = 100_000;
       List<String> out = new LinkedList<>();
