@@ -39,13 +39,20 @@ public interface Pipeline {
     }
   }
 
-  interface Source extends Stage {
+  interface Upstream extends Stage{
+    void tee(Downstream... downstreams);
   }
 
-  interface Sink extends Stage {
+  interface Downstream extends Stage {
   }
 
-  interface Pipe extends Stage {
+  interface Source extends Upstream {
+  }
+
+  interface Sink extends Downstream {
+  }
+
+  interface Pipe extends Upstream, Downstream {
   }
 
   interface Mapper extends Pipe {
