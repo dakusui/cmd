@@ -224,12 +224,12 @@ public class StreamUtilsTest extends TestUtils.TestBase {
           .forEach(s -> s.forEach(System.out::println));
     }
 
-    @Test
+    @Test(timeout = 3_000)
     public void givenData$whenPartition$thenAllDataStreamedCorrectly() {
       List<String> out = synchronizedList(new LinkedList<>());
       int numDownstreams = 2;
       AtomicInteger remaining = new AtomicInteger(numDownstreams);
-      ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
+      ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams + 1);
       StreamUtils.partition(
           newFixedThreadPool(2),
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 100, String::hashCode)

@@ -28,6 +28,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
+/**
+ * A class to wrap a {@code Process} object and to use it safely and easily.
+ */
 public class ProcessStreamer {
   private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
   private final        InputStream             stderr;

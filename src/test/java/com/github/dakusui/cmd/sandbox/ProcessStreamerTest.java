@@ -20,14 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
-import static com.github.dakusui.crest.Crest.allOf;
-import static com.github.dakusui.crest.Crest.asInteger;
-import static com.github.dakusui.crest.Crest.asListOf;
-import static com.github.dakusui.crest.Crest.asString;
-import static com.github.dakusui.crest.Crest.assertThat;
-import static com.github.dakusui.crest.Crest.call;
-import static com.github.dakusui.crest.Crest.sublistAfter;
-import static com.github.dakusui.crest.Crest.sublistAfterElement;
+import static com.github.dakusui.crest.Crest.*;
 import static com.github.dakusui.crest.utils.printable.Predicates.containsString;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -78,7 +71,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
         ProcessStreamer ps = new ProcessStreamer.Builder(
             Shell.local(),
             "echo hello world && _Echo hello!").build();
-        private int          exitCode;
+        private int exitCode;
         private List<String> out = new LinkedList<>();
 
         /*
@@ -193,11 +186,29 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               .isEmpty().$());
     }
 
+    @Test(timeout = 1_000)
+    public void pipeTest() {
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
+      AtomicBoolean isReady = new AtomicBoolean(false);
+      Executors.newSingleThreadExecutor().submit(() -> ps.drain(dataStream("A", 10_000)));
+      ps.stream().forEach(System.out::println);
+    }
+
+    @Test(timeout = 10_000)
+    public void pipeTest100_000() {
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n")
+          .configureStdout(true, true, true)
+          .build();
+      Executors.newSingleThreadExecutor().submit(() -> ps.drain(dataStream("A", 100_000)));
+      ps.stream().forEach(System.out::println);
+    }
+  }
+
+  public static class PartitioningAndMerging {
     @Test(timeout = 5_000)
     public void testPartitioning() {
-      TestUtils.partition(
-          dataStream("A", 10_000)).stream()
-          .map(s -> {
+      TestUtils.partition(dataStream("A", 10_000)).stream()
+          .map((Stream<String> s) -> {
             ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
             ps.drain(s);
             return ps.stream();
@@ -217,23 +228,6 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               })
               .collect(Collectors.toList()))
           .forEach(System.out::println);
-    }
-
-    @Test(timeout = 1_000)
-    public void pipeTest() {
-      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n").build();
-      AtomicBoolean isReady = new AtomicBoolean(false);
-      Executors.newSingleThreadExecutor().submit(() -> ps.drain(dataStream("A", 10_000)));
-      ps.stream().forEach(System.out::println);
-    }
-
-    @Test(timeout = 10_000)
-    public void pipeTest100_000() {
-      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n")
-          .configureStdout(true, true, true)
-          .build();
-      Executors.newSingleThreadExecutor().submit(() -> ps.drain(dataStream("A", 100_000)));
-      ps.stream().forEach(System.out::println);
     }
   }
 

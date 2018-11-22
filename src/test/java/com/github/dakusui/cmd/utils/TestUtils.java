@@ -82,7 +82,7 @@ public enum TestUtils {
   }
 
   public static Stream<String> merge(List<Stream<String>> streams) {
-    return StreamUtils.merge(newFixedThreadPool(4), 100, streams.toArray(new Stream[0]));
+    return StreamUtils.merge(newFixedThreadPool(streams.size() + 1), 100, streams.toArray(new Stream[0]));
   }
 
   public static List<Stream<String>> partition(Stream<String> in) {

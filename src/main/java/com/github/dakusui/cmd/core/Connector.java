@@ -22,8 +22,8 @@ public interface Connector<T> {
   abstract class Base<T> implements Connector<T> {
 
     private final ExecutorService threadPool;
-    private final int             numQueues;
-    private final int             eachQueueSize;
+    private final int numQueues;
+    private final int eachQueueSize;
 
     public Base(ExecutorService threadPool, int numQueues, int eachQueueSize) {
       this.threadPool = threadPool;
@@ -68,9 +68,9 @@ public interface Connector<T> {
   }
 
   abstract class BaseBuilder<T, C extends Connector<T>, B extends BaseBuilder<T, C, B>> {
-    int                       numQueues;
+    int numQueues;
     Supplier<ExecutorService> threadPoolFactory;
-    int                       eachQueueSize;
+    int eachQueueSize;
 
     BaseBuilder() {
       this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1))
@@ -98,4 +98,6 @@ public interface Connector<T> {
 
     abstract public C build();
   }
+
+
 }
