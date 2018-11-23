@@ -81,24 +81,26 @@ public enum TestUtils {
     return IntStream.range(0, num).mapToObj(i -> String.format("%s-%s", prefix, i));
   }
 
-  public static Stream<String> merge(List<Stream<String>> streams) {
+  public static <T> Stream<T> merge(List<Stream<T>> streams) {
     return StreamUtils.merge(newFixedThreadPool(streams.size() + 1), 100, streams.toArray(new Stream[0]));
   }
 
-  public static List<Stream<String>> partition(Stream<String> in) {
+  public static <T> List<Stream<T>> partition(Stream<T> in) {
+    int numQueues = 7;
     return StreamUtils.partition(
-        Executors.newFixedThreadPool(2 + 1),
+        Executors.newFixedThreadPool(numQueues + 1),
         in,
-        2,
+        numQueues,
         100,
-        String::hashCode);
+        Object::hashCode);
   }
 
   public static List<Stream<String>> tee(Stream<String> in) {
+    int numQueues = 7;
     return StreamUtils.tee(
-        newFixedThreadPool(4),
+        newFixedThreadPool(numQueues + 1),
         in,
-        4,
+        numQueues,
         100);
   }
 

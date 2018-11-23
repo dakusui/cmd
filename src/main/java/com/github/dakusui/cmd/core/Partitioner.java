@@ -6,7 +6,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.lang.Math.min;
+import static java.lang.Integer.max;
 import static java.util.Objects.requireNonNull;
 
 public interface Partitioner<T> extends Connector<T> {
@@ -19,7 +19,7 @@ public interface Partitioner<T> extends Connector<T> {
     public Builder(Stream<T> in) {
       this.in = requireNonNull(in);
       this.eachQueueSize(100)
-          .numQueues(min(Runtime.getRuntime().availableProcessors() - 1, 1))
+          .numQueues(max(Runtime.getRuntime().availableProcessors() - 1, 1))
           .partitioningFunction(Object::hashCode)
           .threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1));
     }

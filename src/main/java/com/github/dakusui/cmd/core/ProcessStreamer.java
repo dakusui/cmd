@@ -42,8 +42,9 @@ public class ProcessStreamer {
   private final        StreamOptions           stdoutOptions;
   private final        StreamOptions           stderrOptions;
   private final        RingBuffer<String>      ringBuffer;
-  private final        ExecutorService         executorService;
+  private final        ExecutorService         threadPool;
   private              Stream<String>          output;
+  private final        Stream<String>          stdin;
   private              CloseableStringConsumer input;
 
   /**
@@ -51,7 +52,7 @@ public class ProcessStreamer {
    *
    * @param stream A data stream to be drained to the process.
    */
-  public void drain(Stream<String> stream) {
+  protected void drain(Stream<String> stream) {
     requireNonNull(stream);
     LOGGER.debug("Begin draining");
     stream.forEach(this.input::writeLine);
@@ -100,9 +101,9 @@ public class ProcessStreamer {
    */
   public int waitFor() throws InterruptedException {
     this.ensureOutputInitialized();
-    this.executorService.shutdown();
-    while (!this.executorService.isTerminated()) {
-      this.executorService.awaitTermination(1, MILLISECONDS);
+    this.threadPool.shutdown();
+    while (!this.threadPool.isTerminated()) {
+      this.threadPool.awaitTermination(1, MILLISECONDS);
     }
     return this.process.waitFor();
   }
@@ -113,7 +114,7 @@ public class ProcessStreamer {
 
   public void destroy() {
     if (this.process.isAlive()) {
-      this.executorService.shutdownNow();
+      this.threadPool.shutdownNow();
       this.process.destroy();
     }
   }
@@ -135,9 +136,10 @@ public class ProcessStreamer {
   }
 
   private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      StreamOptions stdoutOptions,
+      Stream<String> stdin, StreamOptions stdoutOptions,
       StreamOptions stderrOptions,
       int queueSize, int ringBufferSize) {
+    this.stdin = stdin;
     this.process = createProcess(shell, command, cwd, env);
     this.stdout = this.process.getInputStream();
     this.stderr = this.process.getErrorStream();
@@ -152,8 +154,12 @@ public class ProcessStreamer {
         return format("%s:%s:...%s", shell, command, ringBuffer.stream().collect(joining(";")));
       }
     };
-    this.executorService = Executors.newFixedThreadPool(3);
+    this.threadPool = Executors.newFixedThreadPool(2 + (stdin != null ? 1 : 0));
     this.ensureInputInitialized();
+    if (stdin == null)
+      this.close();
+    else
+      threadPool.submit(() -> this.drain(stdin));
   }
 
   private synchronized void ensureInputInitialized() {
@@ -172,7 +178,7 @@ public class ProcessStreamer {
     if (this.output == null) {
       LOGGER.debug("Begin initialization (output)");
       this.output = StreamUtils.merge(
-          this.executorService,
+          this.threadPool,
           this.queueSize,
           configureStream(
               StreamUtils.stream(this.stdout, charset),
@@ -246,6 +252,7 @@ public class ProcessStreamer {
     private       Charset             charset        = Charset.defaultCharset();
     private       int                 queueSize      = 5000;
     private       int                 ringBufferSize = 100;
+    private       Stream<String>      stdin;
 
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
@@ -259,6 +266,11 @@ public class ProcessStreamer {
 
     public Builder configureStderr(boolean logged, boolean tailed, boolean connected) {
       this.stderrOptions = new StreamOptions(logged, "STDERR", tailed, connected);
+      return this;
+    }
+
+    public Builder stdin(Stream<String> stdin) {
+      this.stdin = stdin;
       return this;
     }
 
@@ -304,7 +316,7 @@ public class ProcessStreamer {
           this.cwd,
           this.env,
           this.charset,
-          this.stdoutOptions,
+          stdin, this.stdoutOptions,
           this.stderrOptions,
           this.queueSize,
           this.ringBufferSize
@@ -347,7 +359,7 @@ public class ProcessStreamer {
       StreamOptions stdoutOptions,
       StreamOptions stderrOptions,
       int queueSize, int ringBufferSize) {
-    return new ProcessStreamer(shell, command, cwd, env, charset, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
+    return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
       @Override
       public void drain(Stream<String> stream) {
         super.drain(stream.peek(s -> {

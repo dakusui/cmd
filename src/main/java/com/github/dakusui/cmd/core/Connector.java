@@ -12,7 +12,7 @@ import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.waitWhile;
-import static java.lang.Integer.min;
+import static java.lang.Integer.max;
 import static java.util.Objects.requireNonNull;
 
 public interface Connector<T> {
@@ -74,7 +74,7 @@ public interface Connector<T> {
 
     BaseBuilder() {
       this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1))
-          .numQueues(min(Runtime.getRuntime().availableProcessors() - 1, 1))
+          .numQueues(max(Runtime.getRuntime().availableProcessors() - 1, 1))
           .eachQueueSize(100);
     }
 

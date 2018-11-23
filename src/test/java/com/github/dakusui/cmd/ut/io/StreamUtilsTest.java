@@ -4,6 +4,7 @@ import com.github.dakusui.cmd.core.Merger;
 import com.github.dakusui.cmd.core.Partitioner;
 import com.github.dakusui.cmd.core.StreamUtils;
 import com.github.dakusui.cmd.utils.TestUtils;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -12,6 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
@@ -30,7 +32,7 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
 
 @RunWith(Enclosed.class)
 public class StreamUtilsTest extends TestUtils.TestBase {
-  public static class Merge {
+  public static class Merge extends TestUtils.TestBase {
     @Test(timeout = 3_000)
     public void givenOneStream$whenMerge$thenOutputIsInOrder() {
       List<String> out = new LinkedList<>();
@@ -120,7 +122,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
   }
 
-  public static class Tee {
+  public static class Tee extends TestUtils.TestBase {
     @Test(timeout = 10_000)
     public void tee10() {
       TestUtils.tee(dataStream("data", 10))
@@ -184,7 +186,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
   }
 
-  public static class Partition {
+  public static class Partition extends TestUtils.TestBase {
     @Test(timeout = 1_000)
     public void partition100b() {
       TestUtils.partition(dataStream("data", 100))
@@ -289,34 +291,83 @@ public class StreamUtilsTest extends TestUtils.TestBase {
 
     @Test(timeout = 1_000)
     public void testPartitioner() {
-      new Partitioner.Builder<>(dataStream("A", 1_000))
-          .build().forEach(System.out::println);
+      int num = 1_000;
+      AtomicInteger counter = new AtomicInteger(0);
+      new Partitioner.Builder<>(dataStream("A", num))
+          .build().forEach(t -> counter.getAndIncrement());
+      assertThat(
+          counter,
+          asInteger("get").equalTo(num).$()
+      );
     }
   }
 
-  public static class PartitionAndMerge {
+  public static class PartitionAndMerge extends TestUtils.TestBase {
 
     @Test(timeout = 10_000)
     public void partitionAndThenMerge100_000() {
+      int num = 100_000;
+      AtomicInteger counter = new AtomicInteger(0);
       TestUtils.merge(
           TestUtils.partition(dataStream("data", 100_000))
-      ).forEach(System.out::println);
-    }
-
-    @Test(timeout = 1_000)
-    public void partitionAndThenMerge100() {
-      TestUtils.merge(
-          TestUtils.partition(dataStream("data", 100))
-      ).forEach(System.out::println);
+      ).forEach(t -> counter.getAndIncrement());
+      assertThat(
+          counter,
+          asInteger("get").equalTo(num).$()
+      );
     }
 
     @Test(timeout = 10_000)
     public void partitionerAndThenMerger() {
+      int num = 100_000;
+      AtomicInteger counter = new AtomicInteger(0);
       new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("A", 100_000)).build().partition()
+          new Partitioner.Builder<>(dataStream("A", num)).numQueues(4).build().partition()
+              .stream()
+              .map(s -> s.peek(v -> System.err.println(Thread.currentThread().getId())))
+              .collect(Collectors.toList())
       ).build()
           .merge()
-          .forEach(System.out::println);
+          .forEach(t -> counter.getAndIncrement());
+      assertThat(
+          counter,
+          asInteger("get").equalTo(num).$()
+      );
+    }
+
+    @Test(timeout = 10_000)
+    public void partitionerAndThenMerger_1M() {
+      int result = new Merger.Builder<>(
+          new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(8).build().partition()
+              .stream()
+              .map(s -> s.map(PartitionAndMerge::process))
+              .collect(Collectors.toList())
+      ).build()
+          .merge()
+          .reduce((v, w) -> v + w).orElseThrow(RuntimeException::new);
+      System.out.println(result);
+    }
+
+    @Ignore
+    @Test(timeout = 20_000)
+    public void plain10M() {
+      // 1M 118691370 1s126ms
+      System.out.println(dataStream("data", 10_000_000)
+          .map(PartitionAndMerge::process)
+          .reduce((v, w) -> v + w));
+    }
+
+    @Ignore
+    @Test(timeout = 5_000)
+    public void plain1M() {
+      // 1M 118691370 1s126ms
+      System.out.println(dataStream("data", 1_000_000)
+          .map(PartitionAndMerge::process)
+          .reduce((v, w) -> v + w));
+    }
+
+    private static int process(String s) {
+      return s.length();
     }
   }
 }
