@@ -15,7 +15,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,7 +29,6 @@ import static com.github.dakusui.crest.Crest.call;
 import static com.github.dakusui.crest.Crest.sublistAfter;
 import static com.github.dakusui.crest.Crest.sublistAfterElement;
 import static com.github.dakusui.crest.utils.printable.Predicates.containsString;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 @RunWith(Enclosed.class)
 public class ProcessStreamerTest extends TestUtils.TestBase {
@@ -136,9 +134,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
           runProcessStreamer(
               () -> new ProcessStreamer.Builder(Shell.local(), "echo hello world && echo !")
                   .stdin(Stream.of("a", "b", "c"))
-                  .build(),
-              ps -> {
-              }),
+                  .build()),
           asListOf(String.class,
               sublistAfterElement("hello world").afterElement("!").$()).$());
     }
@@ -152,9 +148,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     public void givenCat$whenDrainDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       assertThat(
           runProcessStreamer(
-              () -> new ProcessStreamer.Builder(Shell.local(), "cat -n").stdin(Stream.of("a", "b", "c")).build(),
-              ps -> {
-              }),
+              () -> new ProcessStreamer.Builder(Shell.local(), "cat -n").stdin(Stream.of("a", "b", "c")).build()),
           asListOf(String.class,
               sublistAfter(containsString("a"))
                   .after(containsString("b"))
@@ -169,9 +163,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
           runProcessStreamer(
               () -> new ProcessStreamer.Builder(Shell.local(), "cat -n")
                   .stdin(dataStream("data", lines))
-                  .configureStdout(true, true, true).build(),
-              ps -> {
-              }),
+                  .configureStdout(true, true, true).build()),
           allOf(
               asInteger("size").equalTo(lines).$(),
               asListOf(String.class,
@@ -192,9 +184,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
                   .configureStderr(true, true, true)
                   .queueSize(1)
                   .ringBufferSize(1)
-                  .build(),
-              ps -> {
-              }),
+                  .build()),
           asListOf(String.class,
               sublistAfter(containsString("a"))
                   .after(containsString("b"))
@@ -208,7 +198,8 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
       ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n")
           .stdin(dataStream("A", 10_000))
           .build();
-      Executors.newSingleThreadExecutor().submit(() -> {});
+      Executors.newSingleThreadExecutor().submit(() -> {
+      });
       ps.stream().forEach(System.out::println);
     }
 
@@ -218,7 +209,8 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
           .stdin(dataStream("A", 100_000))
           .configureStdout(true, true, true)
           .build();
-      Executors.newSingleThreadExecutor().submit(() -> {});
+      Executors.newSingleThreadExecutor().submit(() -> {
+      });
       ps.stream().forEach(System.out::println);
     }
   }
@@ -257,19 +249,12 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
 
   }
 
-  private static List<String> runProcessStreamer(
-      Supplier<ProcessStreamer> processStreamerSupplier,
-      Consumer<ProcessStreamer> dataDrainer) throws InterruptedException {
+  private static List<String> runProcessStreamer(Supplier<ProcessStreamer> processStreamerSupplier)
+      throws InterruptedException {
     ProcessStreamer ps = processStreamerSupplier.get();
-    ExecutorService executorService = Executors.newFixedThreadPool(2);
-    executorService.submit(() -> dataDrainer.accept(ps));
     List<String> out = new LinkedList<>();
-    executorService.submit(() -> ps.stream().forEach(out::add));
+    ps.stream().forEach(out::add);
     System.out.println(ps.getPid() + "=" + ps.waitFor());
-    executorService.shutdown();
-    while (!executorService.isTerminated()) {
-      executorService.awaitTermination(1, MILLISECONDS);
-    }
     return out;
   }
 }

@@ -34,7 +34,7 @@ public interface Merger<T> extends Connector<T> {
   class Impl<T> extends Connector.Base<T> implements Merger<T> {
     private final List<Stream<T>> streams;
 
-    public Impl(List<Stream<T>> streams, ExecutorService threadPool, int numQueues, int eachQueueSize) {
+    Impl(List<Stream<T>> streams, ExecutorService threadPool, int numQueues, int eachQueueSize) {
       super(threadPool, numQueues, eachQueueSize);
       this.streams = requireNonNull(streams);
     }
@@ -47,11 +47,6 @@ public interface Merger<T> extends Connector<T> {
           eachQueueSize(),
           this.streams.toArray(new Stream[0])
       );
-    }
-
-    @Override
-    public List<Stream<T>> streams() {
-      return this.streams;
     }
   }
 }

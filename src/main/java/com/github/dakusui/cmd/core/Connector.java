@@ -1,76 +1,19 @@
 package com.github.dakusui.cmd.core;
 
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
-import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
-import static com.github.dakusui.cmd.core.ConcurrencyUtils.waitWhile;
 import static java.lang.Integer.max;
 import static java.util.Objects.requireNonNull;
 
 public interface Connector<T> {
-
-  void forEach(Consumer<T> consumer);
-
-  abstract class Base<T> implements Connector<T> {
-
-    private final ExecutorService threadPool;
-    private final int numQueues;
-    private final int eachQueueSize;
-
-    public Base(ExecutorService threadPool, int numQueues, int eachQueueSize) {
-      this.threadPool = threadPool;
-      this.numQueues = numQueues;
-      this.eachQueueSize = eachQueueSize;
-    }
-
-    @Override
-    public void forEach(Consumer<T> consumer) {
-      Connector.Base<T> connector = this;
-      int numDownstreams = numQueues();
-      ExecutorService threadPool = Executors.newFixedThreadPool(numDownstreams);
-      AtomicInteger remaining = new AtomicInteger(numDownstreams);
-      connector.streams().forEach(
-          s -> threadPool.submit(
-              () -> {
-                s.forEach(consumer);
-                synchronized (remaining) {
-                  updateAndNotifyAll(remaining, AtomicInteger::decrementAndGet);
-                }
-              }
-          )
-      );
-      synchronized (remaining) {
-        waitWhile(remaining, c -> c.get() > 0);
-      }
-    }
-
-    int numQueues() {
-      return this.numQueues;
-    }
-
-    int eachQueueSize() {
-      return this.eachQueueSize;
-    }
-
-    ExecutorService threadPool() {
-      return this.threadPool;
-    }
-
-    abstract public List<Stream<T>> streams();
-  }
-
   abstract class BaseBuilder<T, C extends Connector<T>, B extends BaseBuilder<T, C, B>> {
-    int numQueues;
+    int                       numQueues;
     Supplier<ExecutorService> threadPoolFactory;
-    int eachQueueSize;
+    int                       eachQueueSize;
 
     BaseBuilder() {
       this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1))
@@ -99,5 +42,27 @@ public interface Connector<T> {
     abstract public C build();
   }
 
+  abstract class Base<T> implements Connector<T> {
+    private final ExecutorService threadPool;
+    private final int             numQueues;
+    private final int             eachQueueSize;
 
+    public Base(ExecutorService threadPool, int numQueues, int eachQueueSize) {
+      this.threadPool = threadPool;
+      this.numQueues = numQueues;
+      this.eachQueueSize = eachQueueSize;
+    }
+
+    int numQueues() {
+      return this.numQueues;
+    }
+
+    int eachQueueSize() {
+      return this.eachQueueSize;
+    }
+
+    ExecutorService threadPool() {
+      return this.threadPool;
+    }
+  }
 }
