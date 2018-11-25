@@ -274,6 +274,10 @@ public class ProcessStreamer {
       return this;
     }
 
+    public Stream<String> stdin() {
+      return this.stdin;
+    }
+
     /**
      * Sets this process builder's working directory.
      * <p>

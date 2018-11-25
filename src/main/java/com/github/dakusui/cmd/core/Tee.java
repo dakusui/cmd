@@ -10,7 +10,7 @@ public interface Tee<T> extends SplittingConnector<T> {
   }
 
   class Builder<T> extends SplittingConnector.BaseBuilder<T, Tee<T>, Builder<T>> {
-    Builder(Stream<T> in) {
+    public Builder(Stream<T> in) {
       super(in);
     }
 
