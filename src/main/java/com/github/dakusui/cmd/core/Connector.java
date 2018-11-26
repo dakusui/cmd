@@ -17,9 +17,9 @@ public interface Connector<T> {
     int                       eachQueueSize;
 
     BaseBuilder() {
-      this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1))
+      this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1, r -> new Thread(r, getClass().getCanonicalName())))
           .numQueues(max(Runtime.getRuntime().availableProcessors() - 1, 1))
-          .eachQueueSize(100);
+          .eachQueueSize(1_000);
     }
 
     @SuppressWarnings("unchecked")
@@ -55,6 +55,10 @@ public interface Connector<T> {
     }
 
     void shutdownThreadPoolAndWaitForTermination() {
+      shutdownThreadPoolAndWaitForTermination(threadPool);
+    }
+
+    static void shutdownThreadPoolAndWaitForTermination(ExecutorService threadPool) {
       threadPool.shutdown();
       while (!threadPool.isTerminated()) {
         try {

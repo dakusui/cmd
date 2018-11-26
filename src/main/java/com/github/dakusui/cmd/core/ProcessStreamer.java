@@ -3,6 +3,7 @@ package com.github.dakusui.cmd.core;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.StreamUtils.CloseableStringConsumer;
 import com.github.dakusui.cmd.core.StreamUtils.RingBuffer;
+import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,11 +17,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
+import static com.github.dakusui.cmd.core.StreamUtils.nop;
 import static com.github.dakusui.cmd.core.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -43,34 +47,10 @@ public class ProcessStreamer {
   private final        StreamOptions           stderrOptions;
   private final        RingBuffer<String>      ringBuffer;
   private final        ExecutorService         threadPool;
+  private final        Checker                 checker;
   private              Stream<String>          output;
   private final        Stream<String>          stdin;
   private              CloseableStringConsumer input;
-
-  /**
-   * Drains data from {@code stream} to the underlying process.
-   *
-   * @param stream A data stream to be drained to the process.
-   */
-  protected void drain(Stream<String> stream) {
-    requireNonNull(stream);
-    LOGGER.debug("Begin draining");
-    stream.forEach(this.input::writeLine);
-    LOGGER.debug("End draining");
-    this.close();
-  }
-
-  /**
-   * Closes {@code stdin} of this process.
-   */
-  private void close() {
-    try {
-      if (this.stdin != null)
-        this.stdin.close();
-    } finally {
-      this.input.close();
-    }
-  }
 
   /**
    * Streams data from the underlying process.
@@ -162,10 +142,18 @@ public class ProcessStreamer {
     return formatter.get();
   }
 
-  private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      Stream<String> stdin, StreamOptions stdoutOptions,
+  private ProcessStreamer(
+      Shell shell,
+      String command,
+      File cwd,
+      Map<String, String> env,
+      Charset charset,
+      Stream<String> stdin,
+      StreamOptions stdoutOptions,
       StreamOptions stderrOptions,
-      int queueSize, int ringBufferSize) {
+      int queueSize,
+      int ringBufferSize,
+      Checker checker) {
     this.stdin = stdin;
     this.process = createProcess(shell, command, cwd, env);
     this.stdout = this.process.getInputStream();
@@ -181,12 +169,37 @@ public class ProcessStreamer {
         return format("%s:%s:...%s", shell, command, ringBuffer.stream().collect(joining(";")));
       }
     };
-    this.threadPool = Executors.newFixedThreadPool(2 + (stdin != null ? 1 : 0));
+    this.threadPool = Executors.newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
+    this.checker = requireNonNull(checker);
     this.ensureInputInitialized();
-    if (stdin == null)
-      this.close();
+    if (this.stdin == null)
+      this.input.close();
     else
-      threadPool.submit(() -> this.drain(this.stdin));
+      this.threadPool.submit(() -> this.drain(this.stdin));
+  }
+
+  /**
+   * Drains data from {@code stream} to the underlying process.
+   *
+   * @param stream A data stream to be drained to the process.
+   */
+  protected void drain(Stream<String> stream) {
+    requireNonNull(stream);
+    LOGGER.debug("Begin draining");
+    stream.forEach(this.input::writeLine);
+    LOGGER.debug("End draining");
+    this.close();
+  }
+
+  /**
+   * Closes {@code stdin} of this process.
+   */
+  private void close() {
+    try {
+      this.stdin.close();
+    } finally {
+      this.input.close();
+    }
   }
 
   private synchronized void ensureInputInitialized() {
@@ -347,10 +360,12 @@ public class ProcessStreamer {
           this.cwd,
           this.env,
           this.charset,
-          stdin, this.stdoutOptions,
+          this.stdin,
+          this.stdoutOptions,
           this.stderrOptions,
           this.queueSize,
-          this.ringBufferSize
+          this.ringBufferSize,
+          Checker.createDefault()
       );
     }
 
@@ -386,11 +401,53 @@ public class ProcessStreamer {
     }
   }
 
+  public interface Checker {
+    default int check(int exitCode) {
+      if (exitCodeChecker().test(exitCode))
+        return exitCode;
+      throw new CommandExecutionException(
+          format("Exit code is expected to be %s, but was %s: command line=%s", exitCodeChecker(), exitCode), null);
+    }
+
+    IntPredicate exitCodeChecker();
+
+    static Checker createDefault() {
+      return new Impl(nop(), nop(), new IntPredicate() {
+        @Override
+        public boolean test(int value) {
+          return value == 0;
+        }
+
+        @Override
+        public String toString() {
+          return "is0";
+        }
+      });
+    }
+
+    class Impl implements Checker {
+      final Consumer<String> stdoutChecker;
+      final Consumer<String> stderrChecker;
+      final IntPredicate     exitCodeChecker;
+
+      Impl(Consumer<String> stdoutChecker, Consumer<String> stderrChecker, IntPredicate exitCodeChecker) {
+        this.stdoutChecker = stdoutChecker;
+        this.stderrChecker = stderrChecker;
+        this.exitCodeChecker = exitCodeChecker;
+      }
+
+      @Override
+      public IntPredicate exitCodeChecker() {
+        return this.exitCodeChecker;
+      }
+    }
+  }
+
   public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
       StreamOptions stdoutOptions,
       StreamOptions stderrOptions,
       int queueSize, int ringBufferSize) {
-    return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
+    return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize, Checker.createDefault()) {
       @Override
       public void drain(Stream<String> stream) {
         super.drain(stream.peek(s -> {

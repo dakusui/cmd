@@ -57,7 +57,7 @@ public interface SplittingConnector<T> extends Connector<T> {
       synchronized (remaining) {
         waitWhile(remaining, c -> c.get() > 0);
       }
+      shutdownThreadPoolAndWaitForTermination(threadPool);
     }
-
   }
 }

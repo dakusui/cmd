@@ -39,6 +39,11 @@ public interface Pipeline {
    */
   Pipeline tee(Pipeline... pipelines);
 
+  /**
+   * Returns a {@code Stream<String>} object. The stream must be closed by a user.
+   *
+   * @return A stream
+   */
   Stream<String> stream();
 
   interface Factory {
@@ -53,6 +58,10 @@ public interface Pipeline {
 
     default Shell shell() {
       return Shell.local();
+    }
+
+    default int eachQueueSize() {
+      return 1_000;
     }
   }
 

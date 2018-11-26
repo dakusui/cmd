@@ -41,9 +41,8 @@ public interface Merger<T> extends Connector<T> {
     @SuppressWarnings("unchecked")
     @Override
     public Stream<T> merge() {
-      final ExecutorService threadPool = threadPool();
       return (Stream<T>) StreamUtils.merge(
-          threadPool,
+          threadPool(),
           eachQueueSize(),
           this.streams.toArray(new Stream[0])
       ).onClose(this::shutdownThreadPoolAndWaitForTermination);

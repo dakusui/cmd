@@ -272,9 +272,8 @@ public class StreamUtilsTest extends TestUtils.TestBase {
           .forEach(
               s -> threadPoolForTestSide.submit(
                   () -> {
-                    s.peek(out::add).forEach(
-                        x -> System.out.println(Thread.currentThread().getId() + ":" + x)
-                    );
+                    s.peek(out::add)
+                        .forEach(x -> System.out.println(Thread.currentThread().getId() + ":" + x));
                     synchronized (remaining) {
                       updateAndNotifyAll(remaining, AtomicInteger::decrementAndGet);
                     }
@@ -340,7 +339,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     @Test(timeout = 15_000)
     public void partitionerAndThenMerger_1M() {
       int result = new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(8).build().partition()
+          new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(7).build().partition()
               .stream()
               .map(s -> s.map(PartitionAndMerge::process))
               .collect(Collectors.toList())
