@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
@@ -32,9 +33,9 @@ public interface SplittingConnector<T> extends Connector<T> {
   abstract class Base<T> extends Connector.Base<T> implements SplittingConnector<T> {
     final Stream<T> in;
 
-    Base(ExecutorService threadPool, int numQueues, int eachQueueSize, Stream<T> in) {
-      super(threadPool, numQueues, eachQueueSize);
-      this.in = requireNonNull(in);
+    Base(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize, Stream<T> in) {
+      super(threadPoolFactory, numQueues, eachQueueSize);
+      this.in = requireNonNull(in).onClose(this::shutdownThreadPoolAndWaitForTermination);
     }
 
     @Override

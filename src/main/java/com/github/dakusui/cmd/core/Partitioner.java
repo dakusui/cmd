@@ -3,6 +3,7 @@ package com.github.dakusui.cmd.core;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
@@ -26,15 +27,15 @@ public interface Partitioner<T> extends SplittingConnector<T> {
     }
 
     public Partitioner<T> build() {
-      return new Partitioner.Impl<>(threadPoolFactory.get(), numQueues, eachQueueSize, partitioningFunction, this.in());
+      return new Partitioner.Impl<>(threadPoolFactory, numQueues, eachQueueSize, partitioningFunction, this.in());
     }
   }
 
   class Impl<T> extends SplittingConnector.Base<T> implements Partitioner<T> {
     private final Function<T, Integer> partitioningFunction;
 
-    Impl(ExecutorService threadPool, int numQueues, int eachQueueSize, Function<T, Integer> partitioningFunction, Stream<T> in) {
-      super(threadPool, numQueues, eachQueueSize, in);
+    Impl(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize, Function<T, Integer> partitioningFunction, Stream<T> in) {
+      super(threadPoolFactory, numQueues, eachQueueSize, in);
       this.partitioningFunction = partitioningFunction;
     }
 

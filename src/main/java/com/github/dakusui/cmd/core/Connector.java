@@ -2,6 +2,7 @@ package com.github.dakusui.cmd.core;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
@@ -47,10 +48,20 @@ public interface Connector<T> {
     private final int             numQueues;
     private final int             eachQueueSize;
 
-    public Base(ExecutorService threadPool, int numQueues, int eachQueueSize) {
-      this.threadPool = threadPool;
+    Base(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize) {
+      this.threadPool = threadPoolFactory.get();
       this.numQueues = numQueues;
       this.eachQueueSize = eachQueueSize;
+    }
+
+    void shutdownThreadPoolAndWaitForTermination() {
+      threadPool.shutdown();
+      while (!threadPool.isTerminated()) {
+        try {
+          threadPool.awaitTermination(1, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ignored) {
+        }
+      }
     }
 
     int numQueues() {

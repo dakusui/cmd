@@ -4,10 +4,14 @@ import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.Merger;
 import com.github.dakusui.cmd.core.ProcessStreamer;
 import com.github.dakusui.cmd.core.Tee;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.BaseStream;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
@@ -60,8 +64,9 @@ public interface Pipeline {
   }
 
   class Impl implements Pipeline {
-    final ProcessStreamer.Builder builder;
-    Stream<String> stdin;
+    private static final Logger                  LOGGER = LoggerFactory.getLogger(Impl.class);
+    final                ProcessStreamer.Builder builder;
+    Stream<String>                           stdin;
     /**
      * A nested function that represents a sequence of actions performed on the stream
      * of the {@code ProcessStreamer} built by this object.
@@ -114,14 +119,19 @@ public interface Pipeline {
     private Function<Stream<String>, Stream<String>> createAction(
         int numSplits,
         Function<Stream<String>, Stream<String>> streamMapper) {
-      return stream -> new Merger.Builder<>(
-          new Tee.Builder<>(stream)
-              .numQueues(numSplits)
-              .build().tee()
-              .stream()
-              .map(streamMapper)
-              .collect(toList()))
-          .build().merge();
+      return stream -> {
+        List<Stream<String>> splits;
+        return new Merger.Builder<>(
+            (splits = new Tee.Builder<>(stream)
+                .numQueues(numSplits)
+                .build().tee()
+                .stream()
+                .map(streamMapper)
+                .collect(toList())))
+            .build()
+            .merge()
+            .onClose(() -> splits.forEach(BaseStream::close));
+      };
     }
   }
 }

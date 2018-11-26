@@ -34,7 +34,9 @@ public class PipelineTest implements Pipeline.Factory {
   @Test(timeout = 1_000)
   public void test2() {
     List<String> out = Collections.synchronizedList(new LinkedList<>());
-    cmd("echo hello && echo world").stream().forEach(out::add);
+    final Stream<String> s;
+    (s = cmd("echo hello && echo world").stream()).forEach(out::add);
+    s.close();
 
     assertThat(
         out,
@@ -45,7 +47,7 @@ public class PipelineTest implements Pipeline.Factory {
     );
   }
 
-  @Test(timeout = 1_000)
+  @Test(timeout = 3_000)
   public void test3() {
     List<String> out = Collections.synchronizedList(new LinkedList<>());
     final Stream<String> s;
@@ -59,5 +61,7 @@ public class PipelineTest implements Pipeline.Factory {
             sublistAfterElement("hello")
                 .afterElement("world").$()).$()
     );
+
+    System.out.println(Thread.getAllStackTraces().keySet().size());
   }
 }

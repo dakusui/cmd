@@ -2,6 +2,7 @@ package com.github.dakusui.cmd.core;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public interface Tee<T> extends SplittingConnector<T> {
@@ -16,13 +17,13 @@ public interface Tee<T> extends SplittingConnector<T> {
 
     @Override
     public Tee<T> build() {
-      return new Tee.Impl<>(threadPoolFactory.get(), numQueues, eachQueueSize, this.in());
+      return new Tee.Impl<>(threadPoolFactory, numQueues, eachQueueSize, this.in());
     }
   }
 
   class Impl<T> extends SplittingConnector.Base<T> implements Tee<T> {
-    Impl(ExecutorService threadPool, int numQueues, int eachQueueSize, Stream<T> in) {
-      super(threadPool, numQueues, eachQueueSize, in);
+    Impl(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize, Stream<T> in) {
+      super(threadPoolFactory, numQueues, eachQueueSize, in);
     }
 
     @Override
