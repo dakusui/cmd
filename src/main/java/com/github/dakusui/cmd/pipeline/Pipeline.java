@@ -23,6 +23,16 @@ public interface Pipeline {
 
   Pipeline map(Function<String, String> mapper);
 
+  /**
+   * Connects {@code pipelines} to downstream side of this pipeline.
+   * The {@code Stream<String>} returned by {@link Pipeline#stream()} method will be
+   * {@code tee}'ed to them by using {@link Tee} class.
+   * However, if an element in {@code pielines} returns non-{@code null} stream when
+   * {@code stream()} method is called, the stream used for the element's {@code stdio}.
+   *
+   * @param pipelines downstream pipelines.
+   * @return This pipeline.
+   */
   Pipeline tee(Pipeline... pipelines);
 
   Stream<String> stream();
@@ -51,7 +61,11 @@ public interface Pipeline {
 
   class Impl implements Pipeline {
     final ProcessStreamer.Builder builder;
-    Stream<String>                           stdin;
+    Stream<String> stdin;
+    /**
+     * A nested function that represents a sequence of actions performed on the stream
+     * of the {@code ProcessStreamer} built by this object.
+     */
     Function<Stream<String>, Stream<String>> actions = Function.identity();
 
     Impl(Shell shell, CommandLineComposer commandLineComposer) {
@@ -81,10 +95,20 @@ public interface Pipeline {
 
             @Override
             public Stream<String> apply(Stream<String> stream) {
-              return pipelines[counter.getAndIncrement()].stdin(stream).stream();
+              Pipeline pipeline = pipelines[counter.getAndIncrement()];
+              return pipeline.stdin() == null ?
+                  pipeline.stdin(stream).stream() :
+                  pipeline.stream();
             }
           }));
       return this;
+    }
+
+    @Override
+    public Stream<String> stream() {
+      final Stream<String> up;
+      return this.actions.apply(up = this.builder.stdin(stdin).build().stream())
+          .onClose(up::close);
     }
 
     private Function<Stream<String>, Stream<String>> createAction(
@@ -98,11 +122,6 @@ public interface Pipeline {
               .map(streamMapper)
               .collect(toList()))
           .build().merge();
-    }
-
-    @Override
-    public Stream<String> stream() {
-      return this.actions.apply(this.builder.stdin(stdin).build().stream());
     }
   }
 }

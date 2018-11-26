@@ -32,20 +32,20 @@ import static java.util.stream.Collectors.toList;
  * A class to wrap a {@code Process} object and to use it safely and easily.
  */
 public class ProcessStreamer {
-  private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final        InputStream             stderr;
-  private final        InputStream             stdout;
-  private final        Process                 process;
-  private final        Charset                 charset;
-  private final        int                     queueSize;
-  private final        Supplier<String>        formatter;
-  private final        StreamOptions           stdoutOptions;
-  private final        StreamOptions           stderrOptions;
-  private final        RingBuffer<String>      ringBuffer;
-  private final        ExecutorService         threadPool;
-  private              Stream<String>          output;
-  private final        Stream<String>          stdin;
-  private              CloseableStringConsumer input;
+  private static final Logger LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
+  private final InputStream stderr;
+  private final InputStream stdout;
+  private final Process process;
+  private final Charset charset;
+  private final int queueSize;
+  private final Supplier<String> formatter;
+  private final StreamOptions stdoutOptions;
+  private final StreamOptions stderrOptions;
+  private final RingBuffer<String> ringBuffer;
+  private final ExecutorService threadPool;
+  private Stream<String> output;
+  private final Stream<String> stdin;
+  private CloseableStringConsumer input;
 
   /**
    * Drains data from {@code stream} to the underlying process.
@@ -76,7 +76,12 @@ public class ProcessStreamer {
    */
   public Stream<String> stream() {
     ensureOutputInitialized();
-    return this.output;
+    return this.output.onClose(() -> {
+      try {
+        this.waitFor();
+      } catch (InterruptedException ignored) {
+      }
+    });
   }
 
   /**
@@ -93,17 +98,20 @@ public class ProcessStreamer {
    * methods on this object.
    * Otherwise this method will wait forever.
    *
-   * @return exit code of the underlying
+   * @return exit code of the underlying process.
    * @throws InterruptedException if the current thread is
    *                              {@linkplain Thread#interrupt() interrupted} by another
-   *                              thread while it is waiting, then the wait is ended and
+   *                              thread while the underlying process is waiting, then the wait is ended and
    *                              an {@link InterruptedException} is thrown.
    */
   public int waitFor() throws InterruptedException {
     this.ensureOutputInitialized();
     this.threadPool.shutdown();
     while (!this.threadPool.isTerminated()) {
-      this.threadPool.awaitTermination(1, MILLISECONDS);
+      try {
+        this.threadPool.awaitTermination(1, MILLISECONDS);
+      } catch (InterruptedException ignored) {
+      }
     }
     return this.process.waitFor();
   }
@@ -136,9 +144,9 @@ public class ProcessStreamer {
   }
 
   private ProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      Stream<String> stdin, StreamOptions stdoutOptions,
-      StreamOptions stderrOptions,
-      int queueSize, int ringBufferSize) {
+                          Stream<String> stdin, StreamOptions stdoutOptions,
+                          StreamOptions stderrOptions,
+                          int queueSize, int ringBufferSize) {
     this.stdin = stdin;
     this.process = createProcess(shell, command, cwd, env);
     this.stdout = this.process.getInputStream();
@@ -243,16 +251,16 @@ public class ProcessStreamer {
 
   public static class Builder {
 
-    private final Shell               shell;
-    private       String              command;
-    private       File                cwd;
-    private final Map<String, String> env            = new HashMap<>();
-    private       StreamOptions       stdoutOptions  = new StreamOptions(true, "STDOUT", true, true);
-    private       StreamOptions       stderrOptions  = new StreamOptions(true, "STDERR", true, true);
-    private       Charset             charset        = Charset.defaultCharset();
-    private       int                 queueSize      = 5000;
-    private       int                 ringBufferSize = 100;
-    private       Stream<String>      stdin;
+    private final Shell shell;
+    private String command;
+    private File cwd;
+    private final Map<String, String> env = new HashMap<>();
+    private StreamOptions stdoutOptions = new StreamOptions(true, "STDOUT", true, true);
+    private StreamOptions stderrOptions = new StreamOptions(true, "STDERR", true, true);
+    private Charset charset = Charset.defaultCharset();
+    private int queueSize = 5000;
+    private int ringBufferSize = 100;
+    private Stream<String> stdin;
 
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
@@ -331,7 +339,7 @@ public class ProcessStreamer {
 
   public static class StreamOptions {
     private final boolean logged;
-    private final String  loggingTag;
+    private final String loggingTag;
     private final boolean tailed;
     private final boolean connected;
 
@@ -360,9 +368,9 @@ public class ProcessStreamer {
   }
 
   public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      StreamOptions stdoutOptions,
-      StreamOptions stderrOptions,
-      int queueSize, int ringBufferSize) {
+                                                      StreamOptions stdoutOptions,
+                                                      StreamOptions stderrOptions,
+                                                      int queueSize, int ringBufferSize) {
     return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize) {
       @Override
       public void drain(Stream<String> stream) {
