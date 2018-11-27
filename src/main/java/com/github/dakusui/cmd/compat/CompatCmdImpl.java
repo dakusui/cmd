@@ -306,7 +306,7 @@ public class CompatCmdImpl implements Cmd {
   }
 
   private static ProcessStreamer startProcess(Shell shell, String command, File cwd, Map<String, String> env, StreamableProcess.Config processConfig) {
-    return ProcessStreamer.compatProcessStreamer(
+    return CompatIoUtils.compatProcessStreamer(
         shell, command, cwd, env,
         processConfig.charset(),
         new ProcessStreamer.StreamOptions(true, "STDOUT", true, true),

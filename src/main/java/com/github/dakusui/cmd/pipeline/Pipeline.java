@@ -2,10 +2,9 @@ package com.github.dakusui.cmd.pipeline;
 
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.core.Merger;
+import com.github.dakusui.cmd.core.Partitioner;
 import com.github.dakusui.cmd.core.ProcessStreamer;
 import com.github.dakusui.cmd.core.Tee;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,10 +58,6 @@ public interface Pipeline {
     default Shell shell() {
       return Shell.local();
     }
-
-    default int eachQueueSize() {
-      return 1_000;
-    }
   }
 
   @FunctionalInterface
@@ -73,7 +68,6 @@ public interface Pipeline {
   }
 
   class Impl implements Pipeline {
-    private static final Logger                  LOGGER = LoggerFactory.getLogger(Impl.class);
     final                ProcessStreamer.Builder builder;
     Stream<String>                           stdin;
     /**
@@ -97,6 +91,7 @@ public interface Pipeline {
 
     @Override
     public Pipeline map(Function<String, String> mapper) {
+      int numPartitions = 8;
       actions = actions.andThen(stream -> stream.map(mapper));
       return this;
     }
@@ -142,5 +137,28 @@ public interface Pipeline {
             .onClose(() -> splits.forEach(BaseStream::close));
       };
     }
+
+    private Function<Stream<String>, Stream<String>> partition(
+        int numPartitions,
+        Function<Stream<String>, Stream<String>> streamMapper,
+        Function<String, Integer> partitioningFunction
+        ) {
+      return stream -> {
+        List<Stream<String>> splits;
+        return new Merger.Builder<>(
+            (splits = new Partitioner.Builder<>(stream)
+                .numQueues(numPartitions)
+                .partitioningFunction(partitioningFunction)
+                .build()
+                .partition()
+                .stream()
+                .map(streamMapper)
+                .collect(toList())))
+            .build()
+            .merge()
+            .onClose(() -> splits.forEach(BaseStream::close));
+      };
+    }
+
   }
 }

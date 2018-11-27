@@ -58,6 +58,47 @@ public class ProcessStreamer {
   private final        Stream<String>          stdin;
   private              CloseableStringConsumer input;
 
+  protected ProcessStreamer(
+      Shell shell,
+      String command,
+      File cwd,
+      Map<String, String> env,
+      Charset charset,
+      Stream<String> stdin,
+      StreamOptions stdoutOptions,
+      StreamOptions stderrOptions,
+      int queueSize,
+      int ringBufferSize,
+      Checker checker) {
+    this.shell = shell;
+    this.commandLine = command;
+    this.process = createProcess(shell, this.commandLine, cwd, env);
+    this.stdout = this.process.getInputStream();
+    this.stderr = this.process.getErrorStream();
+    this.charset = charset;
+    this.queueSize = queueSize;
+    final RingBuffer<String> ringBuffer = RingBuffer.create(ringBufferSize);
+    this.ringBuffer = ringBuffer;
+    this.stdoutOptions = stdoutOptions;
+    this.stderrOptions = stderrOptions;
+    this.formatter = () -> {
+      synchronized (this.ringBuffer) {
+        return format("%s:%s:...%s", this.shell, this.commandLine, ringBuffer.stream().collect(joining(";")));
+      }
+    };
+    this.checker = checker;
+    this.stdin = stdin;
+    this.threadPool = Executors.newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
+    this.ensureInputInitialized();
+    ////
+    // If input is not given, the stdin (, which is returned by Process#getOutputStream()
+    // will be closed immediately.
+    if (this.stdin == null)
+      this.input.close();
+    else
+      this.threadPool.submit(() -> this.drain(Stream.concat(this.stdin, Stream.of((String) null))));
+  }
+
   /**
    * Streams data from the underlying process.
    * The returned stream must be closed by a user explicitly.
@@ -146,47 +187,6 @@ public class ProcessStreamer {
     return formatter.get();
   }
 
-  private ProcessStreamer(
-      Shell shell,
-      String command,
-      File cwd,
-      Map<String, String> env,
-      Charset charset,
-      Stream<String> stdin,
-      StreamOptions stdoutOptions,
-      StreamOptions stderrOptions,
-      int queueSize,
-      int ringBufferSize,
-      Checker checker) {
-    this.shell = shell;
-    this.commandLine = command;
-    this.process = createProcess(shell, this.commandLine, cwd, env);
-    this.stdout = this.process.getInputStream();
-    this.stderr = this.process.getErrorStream();
-    this.charset = charset;
-    this.queueSize = queueSize;
-    final RingBuffer<String> ringBuffer = RingBuffer.create(ringBufferSize);
-    this.ringBuffer = ringBuffer;
-    this.stdoutOptions = stdoutOptions;
-    this.stderrOptions = stderrOptions;
-    this.formatter = () -> {
-      synchronized (this.ringBuffer) {
-        return format("%s:%s:...%s", this.shell, this.commandLine, ringBuffer.stream().collect(joining(";")));
-      }
-    };
-    this.checker = checker;
-    this.stdin = stdin;
-    this.threadPool = Executors.newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
-    this.ensureInputInitialized();
-    ////
-    // If input is not given, the stdin (, which is returned by Process#getOutputStream()
-    // will be closed immediately.
-    if (this.stdin == null)
-      this.input.close();
-    else
-      this.threadPool.submit(() -> this.drain(Stream.concat(this.stdin, Stream.of((String) null))));
-  }
-
   /**
    * Drains data from {@code stream} to the underlying process.
    *
@@ -203,7 +203,7 @@ public class ProcessStreamer {
   /**
    * Closes {@code stdin} of this process.
    */
-  private void close() {
+  protected void close() {
     try {
       if (this.stdin != null)
         this.stdin.close();
@@ -307,7 +307,7 @@ public class ProcessStreamer {
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
       this.command = requireNonNull(command);
-      this.checker = Checker.createDefault();
+      this.checker(Checker.createDefault());
     }
 
     public Builder checker(Checker checker) {
@@ -456,17 +456,7 @@ public class ProcessStreamer {
     }
 
     static Checker createCheckerForExitCode(int acceptableExitCode) {
-      StreamChecker alwaysOk = new StreamChecker() {
-        @Override
-        public boolean getAsBoolean() {
-          return true;
-        }
-
-        @Override
-        public void accept(String s) {
-        }
-      };
-      return new Impl(alwaysOk, alwaysOk, new Predicate<Integer>() {
+      return createCheckerForExitCode(new Predicate<Integer>() {
         @Override
         public boolean test(Integer value) {
           return Objects.equals(value, acceptableExitCode);
@@ -477,6 +467,20 @@ public class ProcessStreamer {
           return "==" + acceptableExitCode;
         }
       });
+    }
+
+    static Checker createCheckerForExitCode(Predicate<Integer> cond) {
+      StreamChecker alwaysOk = new StreamChecker() {
+        @Override
+        public boolean getAsBoolean() {
+          return true;
+        }
+
+        @Override
+        public void accept(String s) {
+        }
+      };
+      return new Impl(alwaysOk, alwaysOk, cond);
     }
 
     /**
@@ -523,21 +527,6 @@ public class ProcessStreamer {
         return this.exitCodeChecker;
       }
     }
-  }
-
-  public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      StreamOptions stdoutOptions,
-      StreamOptions stderrOptions,
-      int queueSize, int ringBufferSize) {
-    return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize, Checker.createDefault()) {
-      @Override
-      public void drain(Stream<String> stream) {
-        super.drain(stream.peek(s -> {
-          if (s == null)
-            super.close();
-        }));
-      }
-    };
   }
 
   public static class Failure extends CommandExecutionException {

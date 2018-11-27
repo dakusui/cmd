@@ -1,11 +1,16 @@
 package com.github.dakusui.cmd.compat;
 
+import com.github.dakusui.cmd.Shell;
+import com.github.dakusui.cmd.core.ProcessStreamer;
+
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -108,6 +113,22 @@ public enum CompatIoUtils {
     ).filter(
         Objects::nonNull
     );
+  }
+
+  @Deprecated
+  public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
+      ProcessStreamer.StreamOptions stdoutOptions,
+      ProcessStreamer.StreamOptions stderrOptions,
+      int queueSize, int ringBufferSize) {
+    return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize, ProcessStreamer.Checker.createDefault()) {
+      @Override
+      public void drain(Stream<String> stream) {
+        super.drain(stream.peek(s -> {
+          if (s == null)
+            super.close();
+        }));
+      }
+    };
   }
 
   private enum IteratorState {
