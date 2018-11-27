@@ -138,6 +138,14 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
           asListOf(String.class,
               sublistAfterElement("hello world").afterElement("!").$()).$());
     }
+
+    @Test(timeout = 1_000, expected = ProcessStreamer.Failure.class)
+    public void givenUnknownCommand$whenStream$thenFailureThrown() throws InterruptedException {
+      runProcessStreamer(
+          () -> new ProcessStreamer.Builder(Shell.local(), "echo___ hello world && echo !")
+              .stdin(Stream.of("a", "b", "c"))
+              .build());
+    }
   }
 
   /**

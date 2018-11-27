@@ -3,6 +3,7 @@ package com.github.dakusui.cmd.sandbox;
 import com.github.dakusui.cmd.pipeline.Pipeline;
 import com.github.dakusui.cmd.utils.Repeat;
 import com.github.dakusui.cmd.utils.RepeatRule;
+import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -16,7 +17,7 @@ import static com.github.dakusui.crest.Crest.asListOf;
 import static com.github.dakusui.crest.Crest.assertThat;
 import static com.github.dakusui.crest.Crest.sublistAfterElement;
 
-public class PipelineTest implements Pipeline.Factory {
+public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory {
   @Rule
   public RepeatRule repeatRule = new RepeatRule();
 
@@ -41,6 +42,7 @@ public class PipelineTest implements Pipeline.Factory {
             asListOf(String.class, sublistAfterElement("     1\tHello").$()).$()
         )
     );
+    out.forEach(System.out::println);
     System.out.println(Thread.getAllStackTraces().keySet().size());
   }
 
@@ -48,9 +50,9 @@ public class PipelineTest implements Pipeline.Factory {
   @Repeat(times = 1_000)
   public void test2() {
     List<String> out = Collections.synchronizedList(new LinkedList<>());
-    final Stream<String> s;
-    (s = cmd("echo hello && echo world").stream()).forEach(out::add);
-    s.close();
+    try (final Stream<String> s = cmd("echo hello && echo world").stream()) {
+      s.forEach(out::add);
+    }
 
     assertThat(
         out,

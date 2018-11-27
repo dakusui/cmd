@@ -104,7 +104,7 @@ public interface Pipeline {
     @Override
     public Pipeline tee(Pipeline... pipelines) {
       actions = actions.andThen(
-          createAction(pipelines.length, new Function<Stream<String>, Stream<String>>() {
+          tee(pipelines.length, new Function<Stream<String>, Stream<String>>() {
             AtomicInteger counter = new AtomicInteger(0);
 
             @Override
@@ -125,7 +125,7 @@ public interface Pipeline {
           .onClose(up::close);
     }
 
-    private Function<Stream<String>, Stream<String>> createAction(
+    private Function<Stream<String>, Stream<String>> tee(
         int numSplits,
         Function<Stream<String>, Stream<String>> streamMapper) {
       return stream -> {

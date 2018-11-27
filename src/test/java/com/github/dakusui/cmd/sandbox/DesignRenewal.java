@@ -8,7 +8,8 @@ import org.junit.runners.Suite.SuiteClasses;
 @RunWith(Suite.class)
 @SuiteClasses(value = {
     StreamUtilsTest.class,
-    ProcessStreamerTest.class
+    ProcessStreamerTest.class,
+    PipelineTest.class
 })
 public class DesignRenewal {
 }
