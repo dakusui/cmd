@@ -12,6 +12,7 @@ import org.junit.runner.RunWith;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -19,12 +20,7 @@ import java.util.stream.Stream;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.updateAndNotifyAll;
 import static com.github.dakusui.cmd.core.ConcurrencyUtils.waitWhile;
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
-import static com.github.dakusui.crest.Crest.allOf;
-import static com.github.dakusui.crest.Crest.anyOf;
-import static com.github.dakusui.crest.Crest.asInteger;
-import static com.github.dakusui.crest.Crest.asListOf;
-import static com.github.dakusui.crest.Crest.assertThat;
-import static com.github.dakusui.crest.Crest.sublistAfterElement;
+import static com.github.dakusui.crest.Crest.*;
 import static com.github.dakusui.crest.utils.printable.Predicates.matchesRegex;
 import static java.util.Arrays.asList;
 import static java.util.Collections.synchronizedList;
@@ -192,7 +188,15 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
     public void partition100b() {
       TestUtils.partition(dataStream("data", 100))
-          .forEach(System.out::println);
+          .forEach(s -> s.forEach(System.out::println));
+    }
+
+    @Test(timeout = 10_000)
+    public void partition1000b() {
+      TestUtils.partition(dataStream("data", 1_000))
+          .stream()
+          .parallel()
+          .forEach(s -> s.forEach(System.out::println));
     }
 
     @Test(timeout = 1_000)
@@ -202,15 +206,30 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
 
     @Test(timeout = 2_000)
-    public void partition1000m() {
+    public void partition1000() {
       List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
-      System.out.println(streams);
-      new Merger.Builder<>(streams).build()
-          .merge().forEach(System.out::println);
+      try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
+        s.forEach(System.out::println);
+      }
     }
 
+    @Test(timeout = 2_000)
+    public void partition1000_2() {
+      List<Stream<String>> streams =
+          StreamUtils.partition(
+              Executors.newFixedThreadPool(10),
+              dataStream("data", 1_000),
+              4,
+              100,
+              Object::hashCode);
+      try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
+        s.forEach(System.out::println);
+      }
+    }
+
+
     @Test(timeout = 10_000)
-    public void partition100_000m() {
+    public void partition100_000andMerge() {
       new Merger.Builder<>(TestUtils.partition(dataStream("data", 100_000))).build()
           .merge().forEach(System.out::println);
     }

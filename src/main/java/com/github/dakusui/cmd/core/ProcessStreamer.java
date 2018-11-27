@@ -13,10 +13,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
@@ -24,7 +24,6 @@ import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.core.Checks.greaterThan;
 import static com.github.dakusui.cmd.core.Checks.requireArgument;
-import static com.github.dakusui.cmd.core.StreamUtils.nop;
 import static com.github.dakusui.cmd.core.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -36,21 +35,23 @@ import static java.util.stream.Collectors.toList;
  * A class to wrap a {@code Process} object and to use it safely and easily.
  */
 public class ProcessStreamer {
-  private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final        InputStream             stderr;
-  private final        InputStream             stdout;
-  private final        Process                 process;
-  private final        Charset                 charset;
-  private final        int                     queueSize;
-  private final        Supplier<String>        formatter;
-  private final        StreamOptions           stdoutOptions;
-  private final        StreamOptions           stderrOptions;
-  private final        RingBuffer<String>      ringBuffer;
-  private final        ExecutorService         threadPool;
-  private final        Checker                 checker;
-  private              Stream<String>          output;
-  private final        Stream<String>          stdin;
-  private              CloseableStringConsumer input;
+  private static final Logger LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
+  private final InputStream stderr;
+  private final InputStream stdout;
+  private final String commandLine;
+  private final Process process;
+  private final Charset charset;
+  private final int queueSize;
+  private final Supplier<String> formatter;
+  private final StreamOptions stdoutOptions;
+  private final StreamOptions stderrOptions;
+  private final RingBuffer<String> ringBuffer;
+  private final ExecutorService threadPool;
+  private final Checker checker;
+  private final Shell shell;
+  private Stream<String> output;
+  private final Stream<String> stdin;
+  private CloseableStringConsumer input;
 
   /**
    * Streams data from the underlying process.
@@ -105,7 +106,7 @@ public class ProcessStreamer {
         } catch (InterruptedException ignored) {
         }
       }
-      return this.process.waitFor();
+      return this.checker.check(this);
     }
   }
 
@@ -154,8 +155,9 @@ public class ProcessStreamer {
       int queueSize,
       int ringBufferSize,
       Checker checker) {
-    this.stdin = stdin;
-    this.process = createProcess(shell, command, cwd, env);
+    this.shell = shell;
+    this.commandLine = command;
+    this.process = createProcess(shell, this.commandLine, cwd, env);
     this.stdout = this.process.getInputStream();
     this.stderr = this.process.getErrorStream();
     this.charset = charset;
@@ -166,11 +168,12 @@ public class ProcessStreamer {
     this.stderrOptions = stderrOptions;
     this.formatter = () -> {
       synchronized (this.ringBuffer) {
-        return format("%s:%s:...%s", shell, command, ringBuffer.stream().collect(joining(";")));
+        return format("%s:%s:...%s", this.shell, this.commandLine, ringBuffer.stream().collect(joining(";")));
       }
     };
+    this.checker = checker;
+    this.stdin = stdin;
     this.threadPool = Executors.newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
-    this.checker = requireNonNull(checker);
     this.ensureInputInitialized();
     if (this.stdin == null)
       this.input.close();
@@ -221,11 +224,11 @@ public class ProcessStreamer {
           this.threadPool,
           this.queueSize,
           configureStream(
-              StreamUtils.stream(this.stdout, charset),
+              StreamUtils.stream(this.stdout, charset).peek(this.checker.forStdOut()),
               ringBuffer,
               stdoutOptions),
           configureStream(
-              StreamUtils.stream(this.stderr, charset),
+              StreamUtils.stream(this.stderr, charset).peek(this.checker.forStdErr()),
               ringBuffer,
               stderrOptions));
       LOGGER.debug("End initialization (output)");
@@ -282,17 +285,16 @@ public class ProcessStreamer {
   }
 
   public static class Builder {
-
-    private final Shell               shell;
-    private       String              command;
-    private       File                cwd;
-    private final Map<String, String> env            = new HashMap<>();
-    private       StreamOptions       stdoutOptions  = new StreamOptions(true, "STDOUT", true, true);
-    private       StreamOptions       stderrOptions  = new StreamOptions(true, "STDERR", true, true);
-    private       Charset             charset        = Charset.defaultCharset();
-    private       int                 queueSize      = 5000;
-    private       int                 ringBufferSize = 100;
-    private       Stream<String>      stdin;
+    private final Shell shell;
+    private String command;
+    private File cwd;
+    private final Map<String, String> env = new HashMap<>();
+    private StreamOptions stdoutOptions = new StreamOptions(true, "STDOUT", true, true);
+    private StreamOptions stderrOptions = new StreamOptions(true, "STDERR", true, true);
+    private Charset charset = Charset.defaultCharset();
+    private int queueSize = 5_000;
+    private int ringBufferSize = 100;
+    private Stream<String> stdin;
 
     public Builder(Shell shell, String command) {
       this.shell = requireNonNull(shell);
@@ -373,7 +375,7 @@ public class ProcessStreamer {
 
   public static class StreamOptions {
     private final boolean logged;
-    private final String  loggingTag;
+    private final String loggingTag;
     private final boolean tailed;
     private final boolean connected;
 
@@ -402,17 +404,67 @@ public class ProcessStreamer {
   }
 
   public interface Checker {
-    default int check(int exitCode) {
-      if (exitCodeChecker().test(exitCode))
+    default int check(ProcessStreamer processStreamer) throws InterruptedException, CommandExecutionException {
+      final int exitCode = processStreamer.process.waitFor();
+      Optional<String> mismatch = describeMismatch(exitCode);
+      if (!mismatch.isPresent())
         return exitCode;
-      throw new CommandExecutionException(
-          format("Exit code is expected to be %s, but was %s: command line=%s", exitCodeChecker(), exitCode), null);
+      throw new Failure(
+          format("%s%nRecent output:%s",
+              mismatch.get(),
+              processStreamer.ringBuffer
+                  .stream()
+                  .collect(joining("%n  ", "...%n", ""))));
+    }
+
+    default Optional<String> describeMismatch(int exitCode) {
+      List<String> mismatches = new ArrayList<>(4);
+      if (!exitCodeChecker().test(exitCode))
+        mismatches.add(format("Expectation for exit code [%s] was not met.: exitCode=%s", exitCodeChecker(), exitCode));
+      if (!forStdOut().getAsBoolean())
+        mismatches.add(format("Expectation for stdout [%s] was not met.", forStdOut()));
+      if (!forStdErr().getAsBoolean())
+        mismatches.add(format("Expectation for stderr [%s] was not met.", forStdOut()));
+      return mismatches.isEmpty() ?
+          Optional.empty() :
+          Optional.of(mismatches.stream().collect(joining(format("%n  "), "Unsuccessful%n", "")));
+    }
+
+    StreamChecker forStdOut();
+
+    StreamChecker forStdErr();
+
+    /**
+     * An interface to check if a process's input/output streams are meeting requirements.
+     * Instances of this interface returned by {@link Checker} are inserted into reference pipelines
+     * that represent {@code stdout} and {@code stderr} of the process streamer
+     * to which the checker belongs.
+     * <p>
+     * And therefore {@code StreamChecker} is able to check the process's activity is meeting
+     * its requirement.
+     * When it detects an unexpected data in the stream it is responsible for, the {@code get()}
+     * method should return {@code false}.
+     *
+     * @see Checker#forStdOut()
+     * @see Checker#forStdErr()
+     */
+    interface StreamChecker extends Consumer<String>, BooleanSupplier {
     }
 
     IntPredicate exitCodeChecker();
 
     static Checker createDefault() {
-      return new Impl(nop(), nop(), new IntPredicate() {
+      StreamChecker alwaysOk = new StreamChecker() {
+        @Override
+        public boolean getAsBoolean() {
+          return true;
+        }
+
+        @Override
+        public void accept(String s) {
+        }
+      };
+      return new Impl(alwaysOk, alwaysOk, new IntPredicate() {
         @Override
         public boolean test(int value) {
           return value == 0;
@@ -420,20 +472,31 @@ public class ProcessStreamer {
 
         @Override
         public String toString() {
-          return "is0";
+          return "is 0";
         }
       });
     }
 
     class Impl implements Checker {
-      final Consumer<String> stdoutChecker;
-      final Consumer<String> stderrChecker;
-      final IntPredicate     exitCodeChecker;
+      final StreamChecker stdoutChecker;
+      final StreamChecker stderrChecker;
+      final IntPredicate exitCodeChecker;
 
-      Impl(Consumer<String> stdoutChecker, Consumer<String> stderrChecker, IntPredicate exitCodeChecker) {
-        this.stdoutChecker = stdoutChecker;
-        this.stderrChecker = stderrChecker;
-        this.exitCodeChecker = exitCodeChecker;
+      Impl(StreamChecker stdoutChecker, StreamChecker stderrChecker, IntPredicate exitCodeChecker) {
+        this.stdoutChecker = requireNonNull(stdoutChecker);
+        this.stderrChecker = requireNonNull(stderrChecker);
+        this.exitCodeChecker = requireNonNull(exitCodeChecker);
+      }
+
+
+      @Override
+      public StreamChecker forStdOut() {
+        return this.stdoutChecker;
+      }
+
+      @Override
+      public StreamChecker forStdErr() {
+        return this.stderrChecker;
       }
 
       @Override
@@ -444,9 +507,9 @@ public class ProcessStreamer {
   }
 
   public static ProcessStreamer compatProcessStreamer(Shell shell, String command, File cwd, Map<String, String> env, Charset charset,
-      StreamOptions stdoutOptions,
-      StreamOptions stderrOptions,
-      int queueSize, int ringBufferSize) {
+                                                      StreamOptions stdoutOptions,
+                                                      StreamOptions stderrOptions,
+                                                      int queueSize, int ringBufferSize) {
     return new ProcessStreamer(shell, command, cwd, env, charset, null, stdoutOptions, stderrOptions, queueSize, ringBufferSize, Checker.createDefault()) {
       @Override
       public void drain(Stream<String> stream) {
@@ -456,5 +519,11 @@ public class ProcessStreamer {
         }));
       }
     };
+  }
+
+  private static class Failure extends CommandExecutionException {
+    Failure(String msg) {
+      super(msg, null);
+    }
   }
 }
