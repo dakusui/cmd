@@ -355,7 +355,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       );
     }
 
-    @Test(timeout = 15_000)
+    @Test(timeout = 30_000)
     public void partitionerAndThenMerger_1M() {
       int result = new Merger.Builder<>(
           new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(7).build().partition()

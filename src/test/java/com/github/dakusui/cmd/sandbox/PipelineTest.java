@@ -27,7 +27,7 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
     List<String> out = Collections.synchronizedList(new LinkedList<>());
 
     try (Stream<String> stream = cmd("echo hello && echo world")
-        .tee(cmd("cat").map(String::toUpperCase),
+        .tee(cmd("cat").map(8 , String::toUpperCase),
             cmd("cat -n"),
             cmd("cat -n").stdin(Stream.of("Hello")))
         .stream()) {

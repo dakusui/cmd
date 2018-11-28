@@ -24,7 +24,18 @@ public interface Pipeline {
 
   Stream<String> stdin();
 
-  Pipeline map(Function<String, String> mapper);
+  default Pipeline map(int numPartitions, Pipeline mapper) {
+    return this.mapStream(
+        numPartitions,
+        in -> mapper.stdin(in).stream()
+    );
+  }
+
+  Pipeline mapStream(int numPartitions, Function<Stream<String>, Stream<String>> mapper);
+
+  default Pipeline map(int numPartitions, Function<String, String> mapper) {
+    return mapStream(numPartitions, in -> in.map(mapper));
+  }
 
   /**
    * Connects {@code pipelines} to downstream side of this pipeline.
@@ -68,7 +79,7 @@ public interface Pipeline {
   }
 
   class Impl implements Pipeline {
-    final                ProcessStreamer.Builder builder;
+    final ProcessStreamer.Builder builder;
     Stream<String>                           stdin;
     /**
      * A nested function that represents a sequence of actions performed on the stream
@@ -90,9 +101,15 @@ public interface Pipeline {
     }
 
     @Override
-    public Pipeline map(Function<String, String> mapper) {
-      int numPartitions = 8;
-      actions = actions.andThen(stream -> stream.map(mapper));
+    public Pipeline mapStream(int numPartitions, Function<Stream<String>, Stream<String>> mapper) {
+      if (numPartitions == 1)
+        actions = actions.andThen(mapper);
+      else
+        actions = actions.andThen(
+            partition(
+                numPartitions,
+                mapper,
+                Object::hashCode));
       return this;
     }
 
@@ -142,7 +159,7 @@ public interface Pipeline {
         int numPartitions,
         Function<Stream<String>, Stream<String>> streamMapper,
         Function<String, Integer> partitioningFunction
-        ) {
+    ) {
       return stream -> {
         List<Stream<String>> splits;
         return new Merger.Builder<>(
