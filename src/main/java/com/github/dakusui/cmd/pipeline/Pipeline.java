@@ -27,7 +27,7 @@ public interface Pipeline {
   default Pipeline map(int numPartitions, Pipeline mapper) {
     return this.mapStream(
         numPartitions,
-        in -> mapper.stdin(in).stream()
+        in -> mapper.stdin(in).stream().onClose(in::close)
     );
   }
 
@@ -40,14 +40,14 @@ public interface Pipeline {
   /**
    * Connects {@code pipelines} to downstream side of this pipeline.
    * The {@code Stream<String>} returned by {@link Pipeline#stream()} method will be
-   * {@code tee}'ed to them by using {@link Tee} class.
+   * {@code connect}'ed to them by using {@link Tee} class.
    * However, if an element in {@code pielines} returns non-{@code null} stream when
    * {@code stream()} method is called, the stream used for the element's {@code stdio}.
    *
    * @param pipelines downstream pipelines.
    * @return This pipeline.
    */
-  Pipeline tee(Pipeline... pipelines);
+  Pipeline connect(Pipeline... pipelines);
 
   /**
    * Returns a {@code Stream<String>} object. The stream must be closed by a user.
@@ -114,7 +114,7 @@ public interface Pipeline {
     }
 
     @Override
-    public Pipeline tee(Pipeline... pipelines) {
+    public Pipeline connect(Pipeline... pipelines) {
       actions = actions.andThen(
           tee(pipelines.length, new Function<Stream<String>, Stream<String>>() {
             AtomicInteger counter = new AtomicInteger(0);

@@ -153,6 +153,39 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
    */
   public static class PipeTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
+    public void givenSort$whenDrainDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
+      assertThat(
+          runProcessStreamer(
+              () -> new ProcessStreamer.Builder(Shell.local(), "sort").stdin(Stream.of("c", "b", "a")).build()),
+          asListOf(String.class,
+              sublistAfter(containsString("a"))
+                  .after(containsString("b"))
+                  .after(containsString("c")).$())
+              .isEmpty().$());
+    }
+
+    @Test(timeout = 1_000)
+    public void givenSort$whenDrain1kDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
+      assertThat(
+          runProcessStreamer(
+              () -> new ProcessStreamer.Builder(Shell.local(), "sort").stdin(dataStream("data", 1_000)).build()),
+          asListOf(String.class,
+              sublistAfter(containsString("997"))
+                  .after(containsString("998"))
+                  .after(containsString("999")).$())
+              .isEmpty().$());
+    }
+
+    @Test(timeout = 60_000)
+    public void givenSortPipedToCatN$whenDrain10kDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
+      int num = 1_000_000;
+      assertThat(
+          runProcessStreamer(
+              () -> new ProcessStreamer.Builder(Shell.local(), "sort").stdin(dataStream("data", num)).build()),
+          asInteger("size").equalTo(num).$());
+    }
+
+    @Test(timeout = 1_000)
     public void givenCat$whenDrainDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       assertThat(
           runProcessStreamer(
