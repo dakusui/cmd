@@ -96,7 +96,8 @@ public class ProcessStreamer {
     if (this.stdin == null)
       this.input.close();
     else
-      this.threadPool.submit(() -> this.drain(Stream.concat(this.stdin, Stream.of((String) null))));
+      this.threadPool.submit(() ->
+          this.drain(Stream.concat(this.stdin, Stream.of((String) null))));
   }
 
   /**

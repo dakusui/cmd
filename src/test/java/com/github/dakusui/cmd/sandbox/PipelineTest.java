@@ -88,7 +88,7 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
   }
 
 
-  @Test
+  @Test(timeout = 10_000)
   public void test4() {
     int before = Thread.getAllStackTraces().keySet().size();
     System.out.println("before=" + before);
