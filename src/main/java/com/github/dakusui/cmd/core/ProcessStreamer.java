@@ -198,6 +198,7 @@ public class ProcessStreamer {
     stream.forEach(this.input);
     LOGGER.debug("End draining");
     this.close();
+    LOGGER.debug("Closed");
   }
 
   /**

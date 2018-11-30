@@ -5,6 +5,7 @@ import com.github.dakusui.cmd.core.Merger;
 import com.github.dakusui.cmd.core.Partitioner;
 import com.github.dakusui.cmd.core.ProcessStreamer;
 import com.github.dakusui.cmd.utils.TestUtils;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -20,18 +21,58 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
-import static com.github.dakusui.crest.Crest.allOf;
-import static com.github.dakusui.crest.Crest.asInteger;
-import static com.github.dakusui.crest.Crest.asListOf;
-import static com.github.dakusui.crest.Crest.asString;
-import static com.github.dakusui.crest.Crest.assertThat;
-import static com.github.dakusui.crest.Crest.call;
-import static com.github.dakusui.crest.Crest.sublistAfter;
-import static com.github.dakusui.crest.Crest.sublistAfterElement;
+import static com.github.dakusui.crest.Crest.*;
 import static com.github.dakusui.crest.utils.printable.Predicates.containsString;
 
 @RunWith(Enclosed.class)
 public class ProcessStreamerTest extends TestUtils.TestBase {
+  public static class BuilderTest extends TestUtils.TestBase {
+    @Test
+    public void givenEnvVarHELLO_world_$whenEchoEnvVarHELLO$then_world_isPrinted() {
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "echo $HELLO")
+          .env("HELLO", "world")
+          .configureStdout(false, false, true)
+          .build();
+      assertThat(
+          ps.stream().collect(Collectors.joining()),
+          asString().equalTo("world").$()
+      );
+    }
+
+    @Test
+    public void givenCwd$whenEchoEnvVarHELLO$then_world_isPrinted() {
+      File dir = new File(System.getProperty("user.dir")).getParentFile();
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "pwd")
+          .cwd(dir)
+          .configureStdout(false, false, true)
+          .build();
+      assertThat(
+          ps.stream().collect(Collectors.joining()),
+          asString().equalTo(dir.getAbsolutePath()).$()
+      );
+    }
+
+    @Test(expected = ProcessStreamer.Failure.class)
+    public void givenCommandNotFound$whenStreamClosed$thenExceptionThrown() {
+      String commandNotFound = "__command_not_found__";
+      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), commandNotFound)
+          .checker(ProcessStreamer.Checker.createDefault())
+          .configureStdout(true, true, true)
+          .build();
+
+      try (Stream<String> s = ps.stream()) {
+        s.forEach(System.out::println);
+      } catch (ProcessStreamer.Failure e) {
+        assertThat(
+            e.getMessage(),
+            asString().containsString(commandNotFound).$()
+        );
+        throw e;
+      }
+    }
+
+  }
+
   public static class SinkTest extends TestUtils.TestBase {
     @Test(timeout = 3_000)
     public void testSink() throws IOException {
@@ -76,10 +117,10 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     @Test
     public void givenCommandResultingInError$whenExecuted$thenOutputIsCorrect() {
       class Result {
-        ProcessStreamer ps = new ProcessStreamer.Builder(
+        private ProcessStreamer ps = new ProcessStreamer.Builder(
             Shell.local(),
             "echo hello world && _Echo hello!").build();
-        private int          exitCode;
+        private int exitCode;
         private List<String> out = new LinkedList<>();
 
         /*
@@ -176,8 +217,9 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               .isEmpty().$());
     }
 
+    @Ignore
     @Test(timeout = 60_000)
-    public void givenSortPipedToCatN$whenDrain10kDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
+    public void givenSortPipedToCatN$whenDrain1000kDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       int num = 1_000_000;
       assertThat(
           runProcessStreamer(
@@ -294,7 +336,9 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
       throws InterruptedException {
     ProcessStreamer ps = processStreamerSupplier.get();
     List<String> out = new LinkedList<>();
-    ps.stream().forEach(out::add);
+    try (Stream<String> stdout = ps.stream()) {
+      stdout.forEach(out::add);
+    }
     System.out.println(ps.getPid() + "=" + ps.waitFor());
     return out;
   }

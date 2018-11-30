@@ -119,7 +119,6 @@ public enum TestUtils {
     }
   }
 
-
   public static void suppressStdOutErrIfRunUnderSurefire() {
     if (TestUtils.isRunUnderSurefire()) {
       System.setOut(new PrintStream(new OutputStream() {
