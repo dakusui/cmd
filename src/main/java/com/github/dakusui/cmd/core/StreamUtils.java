@@ -121,8 +121,10 @@ public enum StreamUtils {
         .mapToObj(c -> StreamSupport.stream(
             ((Iterable<T>) () -> iteratorFinishingOnSentinel(
                 e -> e == sentinel,
-                blockingDataReader(queues.get(c)))).spliterator(),
-            false))
+                blockingDataReader(queues.get(c)),
+                in::close)).spliterator(),
+            false)
+        )
         .collect(toList());
   }
 
@@ -225,14 +227,17 @@ public enum StreamUtils {
 
       @Override
       public Iterator<T> iterator() {
-        return iteratorFinishingOnSentinel(isSentinel, readNext);
+        return iteratorFinishingOnSentinel(
+            isSentinel,
+            readNext,
+            () -> Arrays.stream(streams).forEach(Stream::close));
       }
 
     }.spliterator(), false);
   }
 
   private static <T> Iterator<T> iteratorFinishingOnSentinel(
-      Predicate<Object> isSentinel, Supplier<Object> readNext) {
+      Predicate<Object> isSentinel, Supplier<Object> readNext, Runnable onFinish) {
     return new Iterator<T>() {
       /**
        * An object to let this iterator know that the {@code next} field
@@ -246,16 +251,27 @@ public enum StreamUtils {
       @Override
       public boolean hasNext() {
         if (this.next == this.invalid)
-          this.next = readNext.get();
-        return !isSentinel.test(this.next);
+          this.next = readNext();
+        return !isSentinel(this.next);
+      }
+
+      private Object readNext() {
+        Object ret =  readNext.get();
+        if (!isSentinel(ret))
+          onFinish.run();
+        return ret;
+      }
+
+      private boolean isSentinel(Object ret) {
+        return isSentinel.test(ret);
       }
 
       @SuppressWarnings("unchecked")
       @Override
       public T next() {
         if (this.next == this.invalid)
-          this.next = readNext.get();
-        if (isSentinel.test(this.next))
+          this.next = readNext();
+        if (isSentinel(this.next))
           throw new NoSuchElementException();
         try {
           return (T) this.next;

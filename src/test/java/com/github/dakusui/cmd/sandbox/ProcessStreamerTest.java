@@ -217,7 +217,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               .isEmpty().$());
     }
 
-    @Ignore
+//    @Ignore
     @Test(timeout = 60_000)
     public void givenSortPipedToCatN$whenDrain1000kDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       int num = 1_000_000;
