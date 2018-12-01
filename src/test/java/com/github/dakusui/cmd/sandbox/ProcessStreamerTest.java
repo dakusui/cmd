@@ -1,11 +1,10 @@
 package com.github.dakusui.cmd.sandbox;
 
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.Merger;
-import com.github.dakusui.cmd.core.Partitioner;
-import com.github.dakusui.cmd.core.ProcessStreamer;
+import com.github.dakusui.cmd.compatut.core.Merger;
+import com.github.dakusui.cmd.compatut.core.Partitioner;
+import com.github.dakusui.cmd.compatut.core.ProcessStreamer;
 import com.github.dakusui.cmd.utils.TestUtils;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -21,7 +20,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
-import static com.github.dakusui.crest.Crest.*;
+import static com.github.dakusui.crest.Crest.allOf;
+import static com.github.dakusui.crest.Crest.asInteger;
+import static com.github.dakusui.crest.Crest.asListOf;
+import static com.github.dakusui.crest.Crest.asString;
+import static com.github.dakusui.crest.Crest.assertThat;
+import static com.github.dakusui.crest.Crest.call;
+import static com.github.dakusui.crest.Crest.sublistAfter;
+import static com.github.dakusui.crest.Crest.sublistAfterElement;
 import static com.github.dakusui.crest.utils.printable.Predicates.containsString;
 
 @RunWith(Enclosed.class)
@@ -117,11 +123,11 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     @Test
     public void givenCommandResultingInError$whenExecuted$thenOutputIsCorrect() {
       class Result {
-        private ProcessStreamer ps = new ProcessStreamer.Builder(
+        private ProcessStreamer ps  = new ProcessStreamer.Builder(
             Shell.local(),
             "echo hello world && _Echo hello!").build();
-        private int exitCode;
-        private List<String> out = new LinkedList<>();
+        private int             exitCode;
+        private List<String>    out = new LinkedList<>();
 
         /*
          * This method is reflectively called.
@@ -217,8 +223,8 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
               .isEmpty().$());
     }
 
-//    @Ignore
-    @Test(timeout = 60_000)
+    //    @Ignore
+    @Test(timeout = 300_000)
     public void givenSortPipedToCatN$whenDrain1000kDataAndClose$thenOutputIsCorrectAndInOrder() throws InterruptedException {
       int num = 1_000_000;
       assertThat(
@@ -339,7 +345,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     try (Stream<String> stdout = ps.stream()) {
       stdout.forEach(out::add);
     }
-    System.out.println(ps.getPid() + "=" + ps.waitFor());
+    System.out.println("pid:" + ps.getPid() + "=exitCode:" + ps.waitFor());
     return out;
   }
 }

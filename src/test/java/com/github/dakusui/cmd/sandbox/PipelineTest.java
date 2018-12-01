@@ -116,7 +116,7 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
     List<String> out = Collections.synchronizedList(new LinkedList<>());
 
     try (Stream<String> stream = cmd("cat").stdin(Stream.concat(dataStream("data", 100_000), Stream.of((String)null)))
-        .map(8, cmd("sort -S 10M | cat -n"))
+        .map(8, cmd("sort -S 10k | cat -n"))
         .stream()) {
       stream.peek(System.out::println).forEach(out::add);
     } finally {

@@ -5,10 +5,21 @@
     <appender name="stdout" class="org.apache.log4j.ConsoleAppender">
         <param name="Target" value="System.out"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%-5p [%t]: %C.%M(line:%L):%m%n"/>
+            <param name="ConversionPattern"
+                   value="%-5p [%t]: %C.%M(line:%L):%m%n"/>
         </layout>
     </appender>
-
+    <appender name="stderr" class="org.apache.log4j.ConsoleAppender">
+        <param name="Target" value="System.err"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern"
+                   value="%-5p [%t]: %C.%M(line:%L):%m%n"/>
+        </layout>
+    </appender>
+    <logger name="com.github.dakusui.cmd.compatut.core.ConcurrencyUtils">
+        <level value="INFO"/>
+        <appender-ref ref="stdout"/>
+    </logger>
     <root>
         <level value="DEBUG"/>
         <appender-ref ref="stdout"/>

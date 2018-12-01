@@ -1,8 +1,6 @@
 package com.github.dakusui.cmd.utils;
 
-import com.github.dakusui.cmd.Cmd;
-import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.StreamUtils;
+import com.github.dakusui.cmd.compatut.core.StreamUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -29,7 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -143,25 +140,11 @@ public enum TestUtils {
     return System.getProperty("surefire.real.class.path") != null;
   }
 
-  public static String identity() {
-    String key = "commandstreamer.identity";
-    if (!System.getProperties().containsKey(key))
-      return String.format("%s/.ssh/id_rsa", Cmd.cmd("echo $HOME").stream().collect(Collectors.joining()));
-    return System.getProperty(key);
-  }
-
   public static String userName() {
     String key = "commandstreamer.username";
     if (!System.getProperties().contains(key))
       return System.getProperty("user.name");
     return System.getProperty(key);
-  }
-
-  public static String hostName() {
-    ///
-    // Safest way to get hostname. (or least bad way to get it)
-    // See http://stackoverflow.com/questions/7348711/recommended-way-to-get-hostname-in-java
-    return Cmd.cmd(Shell.local(), "hostname").stream().collect(Collectors.joining());
   }
 
   public static InputStream openForRead(File file) {

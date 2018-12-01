@@ -1,10 +1,10 @@
 package com.github.dakusui.cmd.pipeline;
 
 import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.core.Merger;
-import com.github.dakusui.cmd.core.Partitioner;
-import com.github.dakusui.cmd.core.ProcessStreamer;
-import com.github.dakusui.cmd.core.Tee;
+import com.github.dakusui.cmd.compatut.core.Merger;
+import com.github.dakusui.cmd.compatut.core.Partitioner;
+import com.github.dakusui.cmd.compatut.core.ProcessStreamer;
+import com.github.dakusui.cmd.compatut.core.Tee;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
