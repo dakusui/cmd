@@ -1,8 +1,8 @@
-package com.github.dakusui.cmd.sandbox;
+package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.compatut.core.Merger;
-import com.github.dakusui.cmd.compatut.core.Partitioner;
-import com.github.dakusui.cmd.compatut.core.StreamUtils;
+import com.github.dakusui.cmd.core.stream.Merger;
+import com.github.dakusui.cmd.core.stream.Partitioner;
+import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -17,8 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.compatut.core.ConcurrencyUtils.updateAndNotifyAll;
-import static com.github.dakusui.cmd.compatut.core.ConcurrencyUtils.waitWhile;
+import static com.github.dakusui.cmd.utils.ConcurrencyUtils.updateAndNotifyAll;
+import static com.github.dakusui.cmd.utils.ConcurrencyUtils.waitWhile;
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
 import static com.github.dakusui.crest.Crest.*;
 import static com.github.dakusui.crest.utils.printable.Predicates.matchesRegex;
@@ -34,6 +34,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
+          ExecutorService::shutdown,
           1,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"))
           .peek(System.out::println)
@@ -52,6 +53,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
+          ExecutorService::shutdown,
           1,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"),
           Stream.of("a", "b", "c", "d", "e", "f", "g", "h"))
@@ -73,6 +75,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
+          ExecutorService::shutdown,
           1,
           dataStream("A", sizeOfEachStream),
           dataStream("B", sizeOfEachStream))
@@ -91,6 +94,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
+          ExecutorService::shutdown,
           10_000,
           dataStream("data", 100_000),
           Stream.empty())

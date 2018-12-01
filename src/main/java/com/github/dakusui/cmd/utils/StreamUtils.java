@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.utils;
 
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
@@ -30,10 +30,10 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static com.github.dakusui.cmd.compatut.core.Checks.greaterThan;
-import static com.github.dakusui.cmd.compatut.core.Checks.requireArgument;
-import static com.github.dakusui.cmd.compatut.core.ConcurrencyUtils.updateAndNotifyAll;
-import static com.github.dakusui.cmd.compatut.core.ConcurrencyUtils.waitWhile;
+import static com.github.dakusui.cmd.utils.Checks.greaterThan;
+import static com.github.dakusui.cmd.utils.Checks.requireArgument;
+import static com.github.dakusui.cmd.utils.ConcurrencyUtils.updateAndNotifyAll;
+import static com.github.dakusui.cmd.utils.ConcurrencyUtils.waitWhile;
 import static java.lang.Math.abs;
 import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
@@ -218,21 +218,28 @@ public enum StreamUtils {
    * @return merged stream
    */
   @SafeVarargs
-  public static <T> Stream<T> merge(ExecutorService threadPool, int queueSize, Stream<T>... streams) {
+  public static <T> Stream<T> merge(ExecutorService threadPool, Consumer<ExecutorService> threadPoolCloser, int queueSize, Stream<T>... streams) {
     BlockingQueue<Object> queue = new ArrayBlockingQueue<>(queueSize);
     Set<Object> sentinels = new HashSet<>();
 
     AtomicInteger remainingStreams = new AtomicInteger(streams.length);
-    for (Stream<T> each : streams) {
+    for (Stream<T> eachStream : streams) {
       Object sentinel = createSentinel(remainingStreams.get());
       sentinels.add(sentinel);
       threadPool.submit(
-          () -> Stream.concat(each, Stream.of(sentinel))
-              .forEach(e -> {
-                synchronized (remainingStreams) {
-                  updateAndNotifyAll(remainingStreams, AtomicInteger::decrementAndGet);
+          () -> Stream.concat(eachStream, Stream.of(sentinel))
+              .forEach(new Consumer<Object>() {
+                boolean started = false;
+
+                @Override
+                public void accept(Object elementOrSentinel) {
+                  if (!started)
+                    synchronized (remainingStreams) {
+                      updateAndNotifyAll(remainingStreams, AtomicInteger::decrementAndGet);
+                      started = true;
+                    }
+                  putElement(queue, elementOrSentinel);
                 }
-                putElement(queue, e);
               }));
     }
     synchronized (remainingStreams) {
@@ -242,7 +249,7 @@ public enum StreamUtils {
         succeeded = true;
       } finally {
         if (!succeeded)
-          LOGGER.info("remainingStreams={}", remainingStreams);
+          LOGGER.error("remainingStreams={}", remainingStreams);
       }
     }
     Supplier<Object> reader = blockingDataReader(queue);
@@ -266,7 +273,7 @@ public enum StreamUtils {
         return iteratorFinishingOnSentinel(isSentinel, readNext);
       }
 
-    }.spliterator(), false);
+    }.spliterator(), false).onClose(() -> threadPoolCloser.accept(threadPool));
   }
 
   private static <T> Iterator<T> iteratorFinishingOnSentinel(

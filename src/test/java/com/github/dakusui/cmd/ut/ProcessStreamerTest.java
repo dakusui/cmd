@@ -1,9 +1,9 @@
-package com.github.dakusui.cmd.sandbox;
+package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.compatut.core.Merger;
-import com.github.dakusui.cmd.compatut.core.Partitioner;
-import com.github.dakusui.cmd.compatut.core.ProcessStreamer;
+import com.github.dakusui.cmd.core.process.Shell;
+import com.github.dakusui.cmd.core.stream.Merger;
+import com.github.dakusui.cmd.core.stream.Partitioner;
+import com.github.dakusui.cmd.core.process.ProcessStreamer;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
@@ -115,7 +115,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
     public void testSourceManyLines() {
       ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "seq 1 100000")
           .configureStdout(true, true, true)
-          .stdin(Stream.empty())
+          .stdin(null)
           .build();
       ps.stream().forEach(System.out::println);
     }

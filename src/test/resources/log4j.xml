@@ -16,7 +16,7 @@
                    value="%-5p [%t]: %C.%M(line:%L):%m%n"/>
         </layout>
     </appender>
-    <logger name="com.github.dakusui.cmd.compatut.core.ConcurrencyUtils">
+    <logger name="com.github.dakusui.cmd.utils.ConcurrencyUtils">
         <level value="INFO"/>
         <appender-ref ref="stdout"/>
     </logger>

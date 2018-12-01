@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.core.stream;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -8,8 +8,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.compatut.core.ConcurrencyUtils.updateAndNotifyAll;
-import static com.github.dakusui.cmd.compatut.core.ConcurrencyUtils.waitWhile;
+import static com.github.dakusui.cmd.utils.ConcurrencyUtils.updateAndNotifyAll;
+import static com.github.dakusui.cmd.utils.ConcurrencyUtils.waitWhile;
 import static java.util.Objects.requireNonNull;
 
 public interface SplittingConnector<T> extends Connector<T> {

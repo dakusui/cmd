@@ -1,12 +1,12 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.core.stream;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static com.github.dakusui.cmd.compatut.core.Checks.greaterThan;
-import static com.github.dakusui.cmd.compatut.core.Checks.requireArgument;
+import static com.github.dakusui.cmd.utils.Checks.greaterThan;
+import static com.github.dakusui.cmd.utils.Checks.requireArgument;
 import static java.lang.Integer.max;
 import static java.util.Objects.requireNonNull;
 

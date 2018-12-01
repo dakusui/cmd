@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.utils;
 
 import java.io.BufferedReader;
 import java.io.IOException;

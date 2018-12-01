@@ -1,10 +1,11 @@
 package com.github.dakusui.cmd.pipeline;
 
-import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.compatut.core.Merger;
-import com.github.dakusui.cmd.compatut.core.Partitioner;
-import com.github.dakusui.cmd.compatut.core.ProcessStreamer;
-import com.github.dakusui.cmd.compatut.core.Tee;
+import com.github.dakusui.cmd.core.process.Shell;
+import com.github.dakusui.cmd.core.stream.Merger;
+import com.github.dakusui.cmd.core.stream.Partitioner;
+import com.github.dakusui.cmd.core.process.ProcessStreamer;
+import com.github.dakusui.cmd.utils.StreamUtils;
+import com.github.dakusui.cmd.core.stream.Tee;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -133,8 +134,12 @@ public interface Pipeline {
     @Override
     public Stream<String> stream() {
       final Stream<String> up;
-      return this.actions.apply(up = this.builder.stdin(stdin).build().stream())
-          .onClose(up::close);
+      return StreamUtils.closeOnFinish(
+          this.actions.apply(up = this.builder
+              .stdin(stdin)
+              .build()
+              .stream())
+              .onClose(up::close));
     }
 
     private Function<Stream<String>, Stream<String>> tee(

@@ -1,8 +1,8 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.core.process;
 
-import com.github.dakusui.cmd.Shell;
-import com.github.dakusui.cmd.compatut.core.StreamUtils.CloseableStringConsumer;
-import com.github.dakusui.cmd.compatut.core.StreamUtils.RingBuffer;
+import com.github.dakusui.cmd.utils.StreamUtils;
+import com.github.dakusui.cmd.utils.StreamUtils.CloseableStringConsumer;
+import com.github.dakusui.cmd.utils.StreamUtils.RingBuffer;
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
@@ -28,9 +28,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.compatut.core.Checks.greaterThan;
-import static com.github.dakusui.cmd.compatut.core.Checks.requireArgument;
-import static com.github.dakusui.cmd.compatut.core.StreamUtils.toCloseableStringConsumer;
+import static com.github.dakusui.cmd.utils.Checks.greaterThan;
+import static com.github.dakusui.cmd.utils.Checks.requireArgument;
+import static com.github.dakusui.cmd.utils.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -146,8 +146,6 @@ public class ProcessStreamer {
     this.ensureOutputInitialized();
     synchronized (this.process) {
       try {
-        return this.checker.check(this);
-      } finally {
         this.threadPool.shutdown();
         while (!this.threadPool.isTerminated()) {
           try {
@@ -155,6 +153,8 @@ public class ProcessStreamer {
           } catch (InterruptedException ignored) {
           }
         }
+        return this.checker.check(this);
+      } finally {
       }
     }
   }
@@ -237,6 +237,7 @@ public class ProcessStreamer {
       LOGGER.debug("Begin initialization (output)");
       this.output = StreamUtils.merge(
           this.threadPool,
+          ExecutorService::shutdown,
           this.queueSize,
           configureStream(
               StreamUtils.stream(this.stdout, charset).peek(this.checker.forStdOut()),

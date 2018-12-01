@@ -1,4 +1,4 @@
-package com.github.dakusui.cmd;
+package com.github.dakusui.cmd.core.process;
 
 import java.util.Collections;
 import java.util.LinkedList;

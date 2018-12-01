@@ -1,6 +1,5 @@
 package com.github.dakusui.cmd.utils;
 
-import com.github.dakusui.cmd.compatut.core.StreamUtils;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -22,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -79,7 +79,8 @@ public enum TestUtils {
   }
 
   public static <T> Stream<T> merge(List<Stream<T>> streams) {
-    return StreamUtils.merge(newFixedThreadPool(streams.size() + 1), 100, streams.toArray(new Stream[0]));
+    return StreamUtils.merge(newFixedThreadPool(streams.size() + 1),
+        ExecutorService::shutdown, 100, streams.toArray(new Stream[0]));
   }
 
   public static <T> List<Stream<T>> partition(Stream<T> in) {

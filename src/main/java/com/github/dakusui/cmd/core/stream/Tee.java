@@ -1,4 +1,6 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.core.stream;
+
+import com.github.dakusui.cmd.utils.StreamUtils;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;

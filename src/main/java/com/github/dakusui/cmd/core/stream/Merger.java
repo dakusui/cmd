@@ -1,4 +1,6 @@
-package com.github.dakusui.cmd.compatut.core;
+package com.github.dakusui.cmd.core.stream;
+
+import com.github.dakusui.cmd.utils.StreamUtils;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -41,11 +43,12 @@ public interface Merger<T> extends Connector<T> {
     @SuppressWarnings("unchecked")
     @Override
     public Stream<T> merge() {
-      return (Stream<T>) StreamUtils.merge(
+      return (Stream<T>) StreamUtils.closeOnFinish(StreamUtils.merge(
           threadPool(),
+          Base::shutdownThreadPoolAndWaitForTermination,
           eachQueueSize(),
           this.streams.toArray(new Stream[0])
-      ).onClose(this::shutdownThreadPoolAndWaitForTermination);
+      ));
     }
 
   }

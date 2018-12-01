@@ -4,7 +4,6 @@ import com.github.dakusui.cmd.Cmd;
 import com.github.dakusui.cmd.Shell;
 import com.github.dakusui.cmd.compatut.core.StreamUtils;
 import com.github.dakusui.cmd.compatut.core.ProcessStreamer;
-import com.github.dakusui.cmd.exceptions.CommandInterruptionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.exceptions.UnexpectedExitValueException;
 
