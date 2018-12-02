@@ -1,10 +1,10 @@
 package com.github.dakusui.cmd.core.process;
 
+import com.github.dakusui.cmd.exceptions.CommandExecutionException;
+import com.github.dakusui.cmd.exceptions.Exceptions;
 import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.cmd.utils.StreamUtils.CloseableStringConsumer;
 import com.github.dakusui.cmd.utils.StreamUtils.RingBuffer;
-import com.github.dakusui.cmd.exceptions.CommandExecutionException;
-import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +12,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.Checks.greaterThan;
 import static com.github.dakusui.cmd.utils.Checks.requireArgument;
+import static com.github.dakusui.cmd.utils.StreamUtils.nop;
 import static com.github.dakusui.cmd.utils.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -41,9 +43,20 @@ import static java.util.stream.Collectors.toList;
  * A class to wrap a {@code Process} object and to use it safely and easily.
  */
 public class ProcessStreamer {
+  class Ports {
+    final InputStream  stderr;
+    final InputStream  stdout;
+    final OutputStream stdin;
+
+    Ports(InputStream stderr, InputStream stdout, OutputStream stdin) {
+      this.stderr = stderr;
+      this.stdout = stdout;
+      this.stdin = stdin;
+    }
+  }
+
   private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final        InputStream             stderr;
-  private final        InputStream             stdout;
+  private final        Ports                   ports;
   private final        String                  commandLine;
   private final        Process                 process;
   private final        Charset                 charset;
@@ -56,8 +69,8 @@ public class ProcessStreamer {
   private final        Checker                 checker;
   private final        Shell                   shell;
   private              Stream<String>          output;
-  private final        Stream<String>          stdin;
-  private              CloseableStringConsumer input;
+  private final        Stream<String>          input;
+  private              CloseableStringConsumer inputDestination;
 
   private ProcessStreamer(
       Shell shell,
@@ -74,8 +87,7 @@ public class ProcessStreamer {
     this.shell = shell;
     this.commandLine = command;
     this.process = createProcess(shell, this.commandLine, cwd, env);
-    this.stdout = this.process.getInputStream();
-    this.stderr = this.process.getErrorStream();
+    this.ports = new Ports(this.process.getErrorStream(), this.process.getInputStream(), this.process.getOutputStream());
     this.charset = charset;
     this.queueSize = queueSize;
     final RingBuffer<String> ringBuffer = RingBuffer.create(ringBufferSize);
@@ -88,17 +100,17 @@ public class ProcessStreamer {
       }
     };
     this.checker = checker;
-    this.stdin = stdin;
-    this.threadPool = Executors.newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
+    this.input = stdin;
+    this.threadPool = Executors.newWorkStealingPool();//newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
     this.ensureInputInitialized();
     ////
     // If input is not given, the stdin (, which is returned by Process#getOutputStream()
     // will be closed immediately.
-    if (this.stdin == null)
-      this.input.close();
+    if (this.input == null)
+      this.inputDestination.close();
     else
       this.threadPool.submit(() ->
-          this.drain(this.stdin));
+          this.drain(this.input));
   }
 
   /**
@@ -145,17 +157,8 @@ public class ProcessStreamer {
   public int waitFor() throws InterruptedException {
     this.ensureOutputInitialized();
     synchronized (this.process) {
-      try {
-        this.threadPool.shutdown();
-        while (!this.threadPool.isTerminated()) {
-          try {
-            this.threadPool.awaitTermination(1, MILLISECONDS);
-          } catch (InterruptedException ignored) {
-          }
-        }
-        return this.checker.check(this);
-      } finally {
-      }
+      shutdownThreadPoolAndAwaitTermination(threadPool);
+      return checkProcessBehaviourWithChecker(this, this.checker);
     }
   }
 
@@ -200,7 +203,7 @@ public class ProcessStreamer {
   private void drain(Stream<String> stream) {
     requireNonNull(stream);
     LOGGER.debug("Begin draining");
-    stream.forEach(this.input);
+    stream.forEach(this.inputDestination);
     LOGGER.debug("End draining");
     this.close();
     LOGGER.debug("Closed");
@@ -211,18 +214,18 @@ public class ProcessStreamer {
    */
   protected void close() {
     try {
-      if (this.stdin != null)
-        this.stdin.close();
+      if (this.input != null)
+        this.input.close();
     } finally {
-      this.input.close();
+      this.inputDestination.close();
     }
   }
 
   private synchronized void ensureInputInitialized() {
-    if (this.input == null) {
+    if (this.inputDestination == null) {
       LOGGER.debug("Begin initialization (input)");
-      this.input = toCloseableStringConsumer(
-          new BufferedOutputStream(this.process.getOutputStream()),
+      this.inputDestination = toCloseableStringConsumer(
+          new BufferedOutputStream(this.ports.stdin),
           this.charset);
       LOGGER.debug("End initialization (input)");
     }
@@ -232,26 +235,41 @@ public class ProcessStreamer {
    * This method cannot be called from inside constructor because get{Input,Error}Stream
    * may block
    */
+  @SuppressWarnings("unchecked")
   private synchronized void ensureOutputInitialized() {
     if (this.output == null) {
+      class StreamSetting {
+        private final InputStream   in;
+        private final StreamOptions options;
+
+        private StreamSetting(InputStream in, StreamOptions options) {
+          this.in = in;
+          this.options = options;
+        }
+      }
       LOGGER.debug("Begin initialization (output)");
       this.output = StreamUtils.merge(
           this.threadPool,
-          ExecutorService::shutdown,
+          (threadPool) -> {
+          },
           this.queueSize,
-          configureStream(
-              StreamUtils.stream(this.stdout, charset).peek(this.checker.forStdOut()),
-              ringBuffer,
-              stdoutOptions),
-          configureStream(
-              StreamUtils.stream(this.stderr, charset).peek(this.checker.forStdErr()),
-              ringBuffer,
-              stderrOptions));
+          Stream.of(
+              new StreamSetting(this.ports.stdout, stdoutOptions),
+              new StreamSetting(this.ports.stderr, stderrOptions))
+              .map(streamSetting -> configureStream(
+                  StreamUtils.stream(streamSetting.in, charset).peek(this.checker.forStdOut()),
+                  ringBuffer,
+                  streamSetting.options,
+                  this.threadPool
+              ))
+              .filter(Objects::nonNull)
+              .toArray(Stream[]::new)
+      );
       LOGGER.debug("End initialization (output)");
     }
   }
 
-  private Stream<String> configureStream(Stream<String> stream, RingBuffer<String> ringBuffer, StreamOptions options) {
+  private static Stream<String> configureStream(Stream<String> stream, RingBuffer<String> ringBuffer, StreamOptions options, ExecutorService threadPool) {
     Stream<String> ret = stream;
     if (options.isLogged())
       ret = ret.peek(s -> LOGGER.trace("{}:{}", options.getLoggingTag(), s));
@@ -261,8 +279,13 @@ public class ProcessStreamer {
           ringBuffer.write(elem);
         }
       });
-    if (!options.isConnected())
-      ret = ret.filter(s -> false);
+    if (!options.isConnected()) {
+      Stream<String> finalRet = ret;
+      threadPool.submit(() -> {
+        finalRet.forEach(nop());
+      });
+      ret = null;
+    }
     return ret;
   }
 
@@ -280,6 +303,20 @@ public class ProcessStreamer {
       return b.start();
     } catch (IOException e) {
       throw Exceptions.wrap(e);
+    }
+  }
+
+  private int checkProcessBehaviourWithChecker(ProcessStreamer proc, ProcessStreamer.Checker checker) throws InterruptedException {
+    return checker.check(proc);
+  }
+
+  private static void shutdownThreadPoolAndAwaitTermination(ExecutorService threadPool) {
+    threadPool.shutdown();
+    while (!threadPool.isTerminated()) {
+      try {
+        threadPool.awaitTermination(1, MILLISECONDS);
+      } catch (InterruptedException ignored) {
+      }
     }
   }
 

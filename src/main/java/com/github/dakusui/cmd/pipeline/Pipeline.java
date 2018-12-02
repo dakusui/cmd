@@ -181,6 +181,5 @@ public interface Pipeline {
             .onClose(() -> splits.forEach(BaseStream::close));
       };
     }
-
   }
 }

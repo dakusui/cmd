@@ -218,29 +218,44 @@ public enum StreamUtils {
    * @return merged stream
    */
   @SafeVarargs
-  public static <T> Stream<T> merge(ExecutorService threadPool, Consumer<ExecutorService> threadPoolCloser, int queueSize, Stream<T>... streams) {
+  public static <T> Stream<T> merge(
+      ExecutorService threadPool,
+      Consumer<ExecutorService> threadPoolCloser,
+      int queueSize,
+      Stream<T>... streams) {
+    if (streams.length == 0)
+      return Stream.empty();
+    if (streams.length == 1)
+      return streams[0];
     BlockingQueue<Object> queue = new ArrayBlockingQueue<>(queueSize);
     Set<Object> sentinels = new HashSet<>();
 
     AtomicInteger remainingStreams = new AtomicInteger(streams.length);
+    int i = 0;
     for (Stream<T> eachStream : streams) {
-      Object sentinel = createSentinel(remainingStreams.get());
+      Object sentinel = createSentinel(i++);
       sentinels.add(sentinel);
-      threadPool.submit(
-          () -> Stream.concat(eachStream, Stream.of(sentinel))
-              .forEach(new Consumer<Object>() {
-                boolean started = false;
+      LOGGER.trace("Submitting task for:{}", sentinel);
+      Consumer<Object> action = new Consumer<Object>() {
+        boolean started = false;
 
-                @Override
-                public void accept(Object elementOrSentinel) {
-                  if (!started)
-                    synchronized (remainingStreams) {
-                      updateAndNotifyAll(remainingStreams, AtomicInteger::decrementAndGet);
-                      started = true;
-                    }
-                  putElement(queue, elementOrSentinel);
-                }
-              }));
+        @Override
+        public void accept(Object elementOrSentinel) {
+          LOGGER.trace("{}, is trying to put:{}", sentinel, elementOrSentinel);
+          if (!started) {
+            LOGGER.trace("task:stream:sentinel={} starting", sentinel);
+            synchronized (remainingStreams) {
+              updateAndNotifyAll(remainingStreams, AtomicInteger::decrementAndGet);
+              started = true;
+            }
+          }
+          putElement(queue, elementOrSentinel);
+        }
+      };
+      threadPool.execute(
+          () -> Stream.concat(eachStream, Stream.of(sentinel)).forEach(action)
+      );
+      LOGGER.trace("Submitted task for:{}", eachStream);
     }
     synchronized (remainingStreams) {
       boolean succeeded = false;
@@ -257,15 +272,15 @@ public enum StreamUtils {
     Predicate<Object> isSentinel = sentinels::contains;
     return StreamSupport.stream(new Iterable<T>() {
       final Supplier<Object> readNext = () -> {
-        Object next = reader.get();
-        if (isSentinel.test(next)) {
-          remainingSentinels.remove(next);
+        Object nextElementOrSentinel = reader.get();
+        if (isSentinel.test(nextElementOrSentinel)) {
+          remainingSentinels.remove(nextElementOrSentinel);
           if (remainingSentinels.isEmpty())
-            return next;
+            return nextElementOrSentinel;
           else
             return this.readNext.get();
         }
-        return next;
+        return nextElementOrSentinel;
       };
 
       @Override

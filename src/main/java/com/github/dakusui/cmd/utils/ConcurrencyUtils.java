@@ -13,7 +13,7 @@ public enum ConcurrencyUtils {
   public static <T> void updateAndNotifyAll(T monitor, Consumer<T> update) {
     LOGGER.trace("monitor={} updating", monitor);
     update.accept(monitor);
-    LOGGER.trace("monitor updated={}", monitor);
+    LOGGER.trace("monitor updated to={}", monitor);
     monitor.notifyAll();
   }
 

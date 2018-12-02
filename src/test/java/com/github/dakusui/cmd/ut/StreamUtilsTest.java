@@ -89,6 +89,26 @@ public class StreamUtilsTest extends TestUtils.TestBase {
               asInteger("size").eq(sizeOfEachStream * 2).$()));
     }
 
+    @Test(timeout = 30_000)
+    public void givenTwoLargeSizeStreams$whenMerge$thenOutputIsInOrder() {
+      int sizeOfEachStream = 1_000_000;
+      List<String> out = new LinkedList<>();
+      StreamUtils.merge(
+          newFixedThreadPool(2),
+          ExecutorService::shutdown,
+          1,
+          dataStream("A", sizeOfEachStream),
+          dataStream("B", sizeOfEachStream))
+          .peek(System.out::println)
+          .forEach(out::add);
+
+      assertThat(
+          out,
+          allOf(
+              asListOf(String.class).allMatch(matchesRegex("[AB]-[0-9]+")).$(),
+              asInteger("size").eq(sizeOfEachStream * 2).$()));
+    }
+
     @Test(timeout = 10_000)
     public void givenUnbalancedTwoStreams$whenMerge$thenOutputIsInOrder() {
       List<String> out = new LinkedList<>();
@@ -363,6 +383,19 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     public void partitionerAndThenMerger_1M() {
       int result = new Merger.Builder<>(
           new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(7).build().partition()
+              .stream()
+              .map(s -> s.map(PartitionAndMerge::process))
+              .collect(Collectors.toList())
+      ).build()
+          .merge()
+          .reduce((v, w) -> v + w).orElseThrow(RuntimeException::new);
+      System.out.println(result);
+    }
+
+    @Test(timeout = 60_000)
+    public void partitionerAndThenMerger_10M() {
+      int result = new Merger.Builder<>(
+          new Partitioner.Builder<>(dataStream("data", 10_000_000)).numQueues(7).build().partition()
               .stream()
               .map(s -> s.map(PartitionAndMerge::process))
               .collect(Collectors.toList())
