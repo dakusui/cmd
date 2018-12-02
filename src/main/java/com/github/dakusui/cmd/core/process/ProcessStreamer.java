@@ -22,9 +22,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -35,6 +35,7 @@ import static com.github.dakusui.cmd.utils.StreamUtils.nop;
 import static com.github.dakusui.cmd.utils.StreamUtils.toCloseableStringConsumer;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -101,7 +102,7 @@ public class ProcessStreamer {
     };
     this.checker = checker;
     this.input = stdin;
-    this.threadPool = Executors.newWorkStealingPool();//newFixedThreadPool(2 + (this.stdin != null ? 1 : 0));
+    this.threadPool = newFixedThreadPool(2 + (this.ports.stdin != null ? 1 : 0));
     this.ensureInputInitialized();
     ////
     // If input is not given, the stdin (, which is returned by Process#getOutputStream()
@@ -195,6 +196,39 @@ public class ProcessStreamer {
     return formatter.get();
   }
 
+  public static ProcessStreamer.Builder source() {
+    return source(Shell.local());
+  }
+
+  public static ProcessStreamer.Builder source(Shell shell) {
+    return new ProcessStreamer.Builder(shell)
+        .stdin(null)
+        .configureStdout(true, true, true)
+        .configureStderr(true, true, false);
+  }
+
+  public static ProcessStreamer.Builder sink(Stream<String> stdin) {
+    return sink(stdin, Shell.local());
+  }
+
+  public static ProcessStreamer.Builder sink(Stream<String> stdin, Shell shell) {
+    return new ProcessStreamer.Builder(shell)
+        .stdin(requireNonNull(stdin))
+        .configureStdout(true, true, true)
+        .configureStderr(true, true, false);
+  }
+
+  public static ProcessStreamer.Builder pipe(Stream<String> stdin) {
+    return pipe(stdin, Shell.local());
+  }
+
+  public static ProcessStreamer.Builder pipe(Stream<String> stdin, Shell shell) {
+    return new ProcessStreamer.Builder(shell)
+        .stdin(requireNonNull(stdin))
+        .configureStdout(true, true, true)
+        .configureStderr(true, true, false);
+  }
+
   /**
    * Drains data from {@code stream} to the underlying process.
    *
@@ -238,13 +272,25 @@ public class ProcessStreamer {
   @SuppressWarnings("unchecked")
   private synchronized void ensureOutputInitialized() {
     if (this.output == null) {
-      class StreamSetting {
-        private final InputStream   in;
-        private final StreamOptions options;
+      class StreamFactory implements Function<ExecutorService, Stream<String>> {
+        private final InputStream           in;
+        private final StreamOptions         options;
+        private final Checker.StreamChecker checker;
 
-        private StreamSetting(InputStream in, StreamOptions options) {
+        private StreamFactory(InputStream in, StreamOptions options, Checker.StreamChecker checker) {
           this.in = in;
           this.options = options;
+          this.checker = checker;
+        }
+
+        @Override
+        public Stream<String> apply(ExecutorService executorService) {
+          return configureStream(
+              StreamUtils.stream(this.in, charset).peek(this.checker),
+              ringBuffer,
+              this.options,
+              threadPool
+          );
         }
       }
       LOGGER.debug("Begin initialization (output)");
@@ -254,14 +300,9 @@ public class ProcessStreamer {
           },
           this.queueSize,
           Stream.of(
-              new StreamSetting(this.ports.stdout, stdoutOptions),
-              new StreamSetting(this.ports.stderr, stderrOptions))
-              .map(streamSetting -> configureStream(
-                  StreamUtils.stream(streamSetting.in, charset).peek(this.checker.forStdOut()),
-                  ringBuffer,
-                  streamSetting.options,
-                  this.threadPool
-              ))
+              new StreamFactory(this.ports.stdout, stdoutOptions, checker.forStdOut()),
+              new StreamFactory(this.ports.stderr, stderrOptions, checker.forStdErr()))
+              .map((StreamFactory each) -> each.apply(this.threadPool))
               .filter(Objects::nonNull)
               .toArray(Stream[]::new)
       );
@@ -280,10 +321,8 @@ public class ProcessStreamer {
         }
       });
     if (!options.isConnected()) {
-      Stream<String> finalRet = ret;
-      threadPool.submit(() -> {
-        finalRet.forEach(nop());
-      });
+      Stream<String> terminated = ret;
+      threadPool.submit(() -> terminated.forEach(nop()));
       ret = null;
     }
     return ret;
@@ -338,7 +377,7 @@ public class ProcessStreamer {
   }
 
   public static class Builder {
-    private final Shell               shell;
+    private       Shell               shell;
     private       String              command;
     private       File                cwd;
     private final Map<String, String> env            = new HashMap<>();
@@ -350,10 +389,29 @@ public class ProcessStreamer {
     private       Stream<String>      stdin;
     private       Checker             checker;
 
-    public Builder(Shell shell, String command) {
-      this.shell = requireNonNull(shell);
-      this.command = requireNonNull(command);
+    Builder() {
       this.checker(Checker.createDefault());
+      this.shell(Shell.local());
+    }
+
+    Builder(Shell shell) {
+      this();
+      this.shell(shell);
+    }
+
+    public Builder(Shell shell, String command) {
+      this(shell);
+      this.command(command);
+    }
+
+    public Builder shell(Shell shell) {
+      this.shell = requireNonNull(shell);
+      return this;
+    }
+
+    public Builder command(String command) {
+      this.command = requireNonNull(command);
+      return this;
     }
 
     public Builder checker(Checker checker) {

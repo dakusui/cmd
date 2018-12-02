@@ -10,6 +10,9 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 
 public interface Shell {
+
+  Shell LOCAL_SHELL = new Builder.ForLocal().build();
+
   String program();
 
   List<String> options();
@@ -19,7 +22,7 @@ public interface Shell {
   }
 
   static Shell local() {
-    return new Builder.ForLocal().build();
+    return LOCAL_SHELL;
   }
 
   static Shell ssh(String user, String host) {
