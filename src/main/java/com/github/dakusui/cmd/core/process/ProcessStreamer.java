@@ -71,7 +71,7 @@ public class ProcessStreamer {
   private final        Shell                   shell;
   private              Stream<String>          output;
   private final        Stream<String>          input;
-  private              CloseableStringConsumer inputDestination;
+  private final        CloseableStringConsumer inputDestination;
 
   private ProcessStreamer(
       Shell shell,
@@ -103,15 +103,8 @@ public class ProcessStreamer {
     this.checker = checker;
     this.input = stdin;
     this.threadPool = newFixedThreadPool(2 + (this.ports.stdin != null ? 1 : 0));
-    this.ensureInputInitialized();
-    ////
-    // If input is not given, the stdin (, which is returned by Process#getOutputStream()
-    // will be closed immediately.
-    if (this.input == null)
-      this.inputDestination.close();
-    else
-      this.threadPool.submit(() ->
-          this.drain(this.input));
+    this.inputDestination = initializeInput(stdin, this.ports, this.threadPool, this.charset);
+    this.initializeOutput();
   }
 
   /**
@@ -121,7 +114,6 @@ public class ProcessStreamer {
    * @return data stream.
    */
   public Stream<String> stream() {
-    ensureOutputInitialized();
     return this.output.onClose(() -> {
       this.close();
       try {
@@ -145,7 +137,7 @@ public class ProcessStreamer {
   }
 
   /**
-   * You need to call {@link ProcessStreamer#drain(Stream)} and {@link ProcessStreamer#stream()}
+   * You need to call {@link ProcessStreamer#drain(Stream, CloseableStringConsumer)} and {@link ProcessStreamer#stream()}
    * methods on this object.
    * Otherwise this method will wait forever.
    *
@@ -156,7 +148,6 @@ public class ProcessStreamer {
    *                              an {@link InterruptedException} is thrown.
    */
   public int waitFor() throws InterruptedException {
-    this.ensureOutputInitialized();
     synchronized (this.process) {
       shutdownThreadPoolAndAwaitTermination(threadPool);
       return checkProcessBehaviourWithChecker(this, this.checker);
@@ -232,14 +223,18 @@ public class ProcessStreamer {
   /**
    * Drains data from {@code stream} to the underlying process.
    *
-   * @param stream A data stream to be drained to the process.
+   * @param input A data stream to be drained to the process.
    */
-  private void drain(Stream<String> stream) {
-    requireNonNull(stream);
+  private static void drain(Stream<String> input, CloseableStringConsumer inputDestination) {
+    requireNonNull(input);
     LOGGER.debug("Begin draining");
-    stream.forEach(this.inputDestination);
+    input.forEach(inputDestination);
     LOGGER.debug("End draining");
-    this.close();
+    try {
+      input.close();
+    } finally {
+      inputDestination.close();
+    }
     LOGGER.debug("Closed");
   }
 
@@ -255,14 +250,21 @@ public class ProcessStreamer {
     }
   }
 
-  private synchronized void ensureInputInitialized() {
-    if (this.inputDestination == null) {
-      LOGGER.debug("Begin initialization (input)");
-      this.inputDestination = toCloseableStringConsumer(
-          new BufferedOutputStream(this.ports.stdin),
-          this.charset);
-      LOGGER.debug("End initialization (input)");
-    }
+  private synchronized static CloseableStringConsumer initializeInput(Stream<String> input, Ports ports, ExecutorService threadPool, Charset charset) {
+    LOGGER.debug("Begin initialization (input)");
+    CloseableStringConsumer ret =
+        toCloseableStringConsumer(
+            new BufferedOutputStream(ports.stdin),
+            charset);
+    LOGGER.debug("End initialization (input)");
+    ////
+    // If input is not given, the stdin (, which is returned by Process#getOutputStream()
+    // will be closed immediately.
+    if (input == null)
+      ret.close();
+    else
+      threadPool.submit(() -> drain(input, ret));
+    return ret;
   }
 
   /**
@@ -270,7 +272,7 @@ public class ProcessStreamer {
    * may block
    */
   @SuppressWarnings("unchecked")
-  private synchronized void ensureOutputInitialized() {
+  private synchronized void initializeOutput() {
     if (this.output == null) {
       class StreamFactory implements Function<ExecutorService, Stream<String>> {
         private final InputStream           in;
