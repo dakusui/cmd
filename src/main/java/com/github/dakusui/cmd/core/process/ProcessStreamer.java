@@ -8,25 +8,12 @@ import com.github.dakusui.cmd.utils.StreamUtils.RingBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.Checks.greaterThan;
@@ -45,8 +32,8 @@ import static java.util.stream.Collectors.toList;
  */
 public class ProcessStreamer {
   class Ports {
-    final InputStream  stderr;
-    final InputStream  stdout;
+    final InputStream stderr;
+    final InputStream stdout;
     final OutputStream stdin;
 
     Ports(InputStream stderr, InputStream stdout, OutputStream stdin) {
@@ -56,22 +43,17 @@ public class ProcessStreamer {
     }
   }
 
-  private static final Logger                  LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
-  private final        Ports                   ports;
-  private final        String                  commandLine;
-  private final        Process                 process;
-  private final        Charset                 charset;
-  private final        int                     queueSize;
-  private final        Supplier<String>        formatter;
-  private final        StreamOptions           stdoutOptions;
-  private final        StreamOptions           stderrOptions;
-  private final        RingBuffer<String>      ringBuffer;
-  private final        ExecutorService         threadPool;
-  private final        Checker                 checker;
-  private final        Shell                   shell;
-  private              Stream<String>          output;
-  private final        Stream<String>          input;
-  private final        CloseableStringConsumer inputDestination;
+  private static final Logger LOGGER = LoggerFactory.getLogger(ProcessStreamer.class);
+  private final String commandLine;
+  private final Process process;
+  private final Supplier<String> formatter;
+  private final RingBuffer<String> ringBuffer;
+  private final ExecutorService threadPool;
+  private final Checker checker;
+  private final Shell shell;
+  private final Stream<String> output;
+  private final Stream<String> input;
+  private final CloseableStringConsumer inputDestination;
 
   private ProcessStreamer(
       Shell shell,
@@ -88,13 +70,9 @@ public class ProcessStreamer {
     this.shell = shell;
     this.commandLine = command;
     this.process = createProcess(shell, this.commandLine, cwd, env);
-    this.ports = new Ports(this.process.getErrorStream(), this.process.getInputStream(), this.process.getOutputStream());
-    this.charset = charset;
-    this.queueSize = queueSize;
+    Ports ports = new Ports(this.process.getErrorStream(), this.process.getInputStream(), this.process.getOutputStream());
     final RingBuffer<String> ringBuffer = RingBuffer.create(ringBufferSize);
     this.ringBuffer = ringBuffer;
-    this.stdoutOptions = stdoutOptions;
-    this.stderrOptions = stderrOptions;
     this.formatter = () -> {
       synchronized (this.ringBuffer) {
         return format("%s:%s:...%s", this.shell, this.commandLine, ringBuffer.stream().collect(joining(";")));
@@ -102,9 +80,18 @@ public class ProcessStreamer {
     };
     this.checker = checker;
     this.input = stdin;
-    this.threadPool = newFixedThreadPool(2 + (this.ports.stdin != null ? 1 : 0));
-    this.inputDestination = initializeInput(stdin, this.ports, this.threadPool, this.charset);
-    this.initializeOutput();
+    this.threadPool = newFixedThreadPool(2 + (ports.stdin != null ? 1 : 0));
+    this.inputDestination = initializeInput(stdin, ports, this.threadPool, charset);
+    this.output = initializeOutput(
+        ports,
+        stdoutOptions,
+        stderrOptions,
+        checker,
+        threadPool,
+        queueSize,
+        charset,
+        ringBuffer
+    );
   }
 
   /**
@@ -272,42 +259,50 @@ public class ProcessStreamer {
    * may block
    */
   @SuppressWarnings("unchecked")
-  private synchronized void initializeOutput() {
-    if (this.output == null) {
-      class StreamFactory implements Function<ExecutorService, Stream<String>> {
-        private final InputStream           in;
-        private final StreamOptions         options;
-        private final Checker.StreamChecker checker;
+  private static synchronized Stream<String> initializeOutput(
+      Ports ports,
+      StreamOptions stdoutOptions,
+      StreamOptions stderrOptions,
+      Checker checker,
+      ExecutorService threadPool,
+      int queueSize,
+      Charset charset,
+      RingBuffer<String> ringBuffer) {
+    class StreamFactory implements Function<ExecutorService, Stream<String>> {
+      private final InputStream in;
+      private final StreamOptions options;
+      private final Checker.StreamChecker checker;
 
-        private StreamFactory(InputStream in, StreamOptions options, Checker.StreamChecker checker) {
-          this.in = in;
-          this.options = options;
-          this.checker = checker;
-        }
-
-        @Override
-        public Stream<String> apply(ExecutorService executorService) {
-          return configureStream(
-              StreamUtils.stream(this.in, charset).peek(this.checker),
-              ringBuffer,
-              this.options,
-              threadPool
-          );
-        }
+      private StreamFactory(InputStream in, StreamOptions options, Checker.StreamChecker checker) {
+        this.in = in;
+        this.options = options;
+        this.checker = checker;
       }
-      LOGGER.debug("Begin initialization (output)");
-      this.output = StreamUtils.merge(
-          this.threadPool,
-          (threadPool) -> {
-          },
-          this.queueSize,
+
+      @Override
+      public Stream<String> apply(ExecutorService executorService) {
+        return configureStream(
+            StreamUtils.stream(this.in, charset).peek(this.checker),
+            ringBuffer,
+            this.options,
+            threadPool
+        );
+      }
+    }
+    LOGGER.debug("Begin initialization (output)");
+    try {
+      return StreamUtils.merge(
+          threadPool,
+          nop(),
+          queueSize,
           Stream.of(
-              new StreamFactory(this.ports.stdout, stdoutOptions, checker.forStdOut()),
-              new StreamFactory(this.ports.stderr, stderrOptions, checker.forStdErr()))
-              .map((StreamFactory each) -> each.apply(this.threadPool))
+              new StreamFactory(ports.stdout, stdoutOptions, checker.forStdOut()),
+              new StreamFactory(ports.stderr, stderrOptions, checker.forStdErr()))
+              .map((StreamFactory each) -> each.apply(threadPool))
               .filter(Objects::nonNull)
               .toArray(Stream[]::new)
       );
+    } finally {
       LOGGER.debug("End initialization (output)");
     }
   }
@@ -379,17 +374,17 @@ public class ProcessStreamer {
   }
 
   public static class Builder {
-    private       Shell               shell;
-    private       String              command;
-    private       File                cwd;
-    private final Map<String, String> env            = new HashMap<>();
-    private       StreamOptions       stdoutOptions  = new StreamOptions(true, "STDOUT", true, true);
-    private       StreamOptions       stderrOptions  = new StreamOptions(true, "STDERR", true, true);
-    private       Charset             charset        = Charset.defaultCharset();
-    private       int                 queueSize      = 5_000;
-    private       int                 ringBufferSize = 100;
-    private       Stream<String>      stdin;
-    private       Checker             checker;
+    private Shell shell;
+    private String command;
+    private File cwd;
+    private final Map<String, String> env = new HashMap<>();
+    private StreamOptions stdoutOptions = new StreamOptions(true, "STDOUT", true, true);
+    private StreamOptions stderrOptions = new StreamOptions(true, "STDERR", true, true);
+    private Charset charset = Charset.defaultCharset();
+    private int queueSize = 5_000;
+    private int ringBufferSize = 100;
+    private Stream<String> stdin;
+    private Checker checker;
 
     Builder() {
       this.checker(Checker.createDefault());
@@ -494,7 +489,7 @@ public class ProcessStreamer {
 
   public static class StreamOptions {
     private final boolean logged;
-    private final String  loggingTag;
+    private final String loggingTag;
     private final boolean tailed;
     private final boolean connected;
 
@@ -607,8 +602,8 @@ public class ProcessStreamer {
     }
 
     class Impl implements Checker {
-      final StreamChecker      stdoutChecker;
-      final StreamChecker      stderrChecker;
+      final StreamChecker stdoutChecker;
+      final StreamChecker stderrChecker;
       final Predicate<Integer> exitCodeChecker;
 
       Impl(StreamChecker stdoutChecker, StreamChecker stderrChecker, Predicate<Integer> exitCodeChecker) {

@@ -24,10 +24,7 @@ public class ProcessStreamerConnectionTest {
       ExecutorService threadPool = Executors.newFixedThreadPool(3);
       TestUtils.partition(dataStream("A", 10_000)).stream()
           .map((Stream<String> s) ->
-              new ProcessStreamer.Builder(Shell.local(), "cat -n")
-                  .stdin(s)
-                  .configureStdout(true, true, true)
-                  .configureStderr(true, true, false)
+              ProcessStreamer.pipe(s).command("cat -n")
                   .build().stream())
           .forEach(s -> threadPool.submit(() -> s.forEach(System.out::println)));
       threadPool.shutdown();
@@ -35,10 +32,8 @@ public class ProcessStreamerConnectionTest {
 
     @Test(timeout = 10_000)
     public void testPartitioner_100k() {
-      ProcessStreamer ps = new ProcessStreamer.Builder(Shell.local(), "cat -n")
-          .stdin(dataStream("A", 100_000))
-          .configureStdout(true, true, true)
-          .configureStderr(true, true, false)
+      ProcessStreamer ps = ProcessStreamer.pipe(dataStream("A", 100_000))
+          .command("cat -n")
           .build();
       new Merger.Builder<>(
           new Partitioner.Builder<>(ps.stream()).build().partition()
@@ -50,10 +45,8 @@ public class ProcessStreamerConnectionTest {
       TestUtils.merge(
           TestUtils.partition(
               dataStream("A", 10_000)).stream()
-              .map(s -> new ProcessStreamer.Builder(Shell.local(), "cat -n")
-                  .stdin(s)
-                  .configureStdout(true, true, true)
-                  .configureStderr(true, true, false)
+              .map(s -> ProcessStreamer.pipe(s, Shell.local())
+                  .command("cat -n")
                   .build().stream())
               .collect(Collectors.toList()))
           .forEach(System.out::println);
