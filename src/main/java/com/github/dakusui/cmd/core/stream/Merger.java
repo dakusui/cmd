@@ -50,6 +50,5 @@ public interface Merger<T> extends Connector<T> {
           this.streams.toArray(new Stream[0])
       ));
     }
-
   }
 }

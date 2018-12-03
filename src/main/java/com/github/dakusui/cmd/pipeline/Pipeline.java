@@ -1,11 +1,11 @@
 package com.github.dakusui.cmd.pipeline;
 
+import com.github.dakusui.cmd.core.process.ProcessStreamer;
 import com.github.dakusui.cmd.core.process.Shell;
 import com.github.dakusui.cmd.core.stream.Merger;
 import com.github.dakusui.cmd.core.stream.Partitioner;
-import com.github.dakusui.cmd.core.process.ProcessStreamer;
-import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.cmd.core.stream.Tee;
+import com.github.dakusui.cmd.utils.StreamUtils;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,7 +60,7 @@ public interface Pipeline {
   interface Factory {
     default Pipeline cmd(String cmd) {
       requireNonNull(cmd);
-      return cmd(() -> cmd);
+      return cmd(CommandLineComposer.create(cmd));
     }
 
     default Pipeline cmd(CommandLineComposer commandLineComposer) {
@@ -76,6 +76,24 @@ public interface Pipeline {
   interface CommandLineComposer extends Supplier<String> {
     default String compose() {
       return requireNonNull(this.get());
+    }
+
+    static CommandLineComposer create(String commandLine) {
+      return create(commandLine, () -> commandLine);
+    }
+
+    static CommandLineComposer create(String description, Supplier<String> commandLineSupplier) {
+      return new CommandLineComposer() {
+        @Override
+        public String get() {
+          return commandLineSupplier.get();
+        }
+
+        @Override
+        public String toString() {
+          return description;
+        }
+      };
     }
   }
 

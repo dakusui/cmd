@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.utils.StreamUtils.nop;
 import static java.util.Objects.requireNonNull;
 
 public interface Partitioner<T> extends SplittingConnector<T> {
@@ -43,7 +44,7 @@ public interface Partitioner<T> extends SplittingConnector<T> {
 
     @Override
     public List<Stream<T>> split() {
-      return StreamUtils.partition(this.threadPool(), in, numQueues(), eachQueueSize(), partitioningFunction);
+      return StreamUtils.partition(this.threadPool(), nop(), in, numQueues(), eachQueueSize(), partitioningFunction);
     }
   }
 }

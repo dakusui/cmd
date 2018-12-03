@@ -79,8 +79,8 @@ public class ProcessStreamer {
       }
     };
     this.checker = checker;
+    this.threadPool = newFixedThreadPool(2 + (stdin != null ? 1 : 0));
     this.input = stdin;
-    this.threadPool = newFixedThreadPool(2 + (ports.stdin != null ? 1 : 0));
     this.inputDestination = initializeInput(stdin, ports, this.threadPool, charset);
     this.output = initializeOutput(
         ports,

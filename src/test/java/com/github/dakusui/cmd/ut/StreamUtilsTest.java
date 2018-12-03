@@ -169,8 +169,9 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       int numDownstreams = 2;
       AtomicInteger remaining = new AtomicInteger(numDownstreams);
       ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
-      StreamUtils.<String>tee(
+      StreamUtils.tee(
           newFixedThreadPool(2),
+          ExecutorService::shutdown,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 1)
           .forEach(
               s -> threadPoolForTestSide.submit(
@@ -242,6 +243,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<Stream<String>> streams =
           StreamUtils.partition(
               Executors.newFixedThreadPool(10),
+              ExecutorService::shutdown,
               dataStream("data", 1_000),
               4,
               100,
@@ -279,6 +281,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams + 1);
       StreamUtils.partition(
           newFixedThreadPool(2),
+          ExecutorService::shutdown,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 100, String::hashCode)
           .forEach(
               s -> threadPoolForTestSide.submit(
@@ -311,6 +314,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
       StreamUtils.partition(
           newFixedThreadPool(3),
+          ExecutorService::shutdown,
           dataStream("A", dataSize), numDownstreams, 1, String::hashCode)
           .forEach(
               s -> threadPoolForTestSide.submit(

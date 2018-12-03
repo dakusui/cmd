@@ -97,7 +97,7 @@ public enum StreamUtils {
   }
 
   public static <T> Stream<T> closeOnFinish(Stream<T> in) {
-    return onFinish(in, Stream::close);
+    return onFinish(in, Stream::close).onClose(in::close);
   }
 
   @SuppressWarnings("unchecked")
@@ -123,12 +123,13 @@ public enum StreamUtils {
   @SuppressWarnings("unchecked")
   public static <T> List<Stream<T>> partition(
       ExecutorService threadPool,
+      Consumer<ExecutorService> threadPoolCloser,
       Stream<T> in,
       int numQueues,
       int eachQueueSize,
       Function<T, Integer> partitioner) {
     return split(
-        threadPool, in, numQueues, eachQueueSize,
+        threadPool, threadPoolCloser, in, numQueues, eachQueueSize,
         (blockingQueues, each) ->
             singletonList(blockingQueues.get(abs(partitioner.apply(each)) % numQueues)));
   }
@@ -136,15 +137,17 @@ public enum StreamUtils {
   @SuppressWarnings("unchecked")
   public static <T> List<Stream<T>> tee(
       ExecutorService threadPool,
+      Consumer<ExecutorService> threadPoolCloser,
       Stream<T> in,
       int numQueues,
       int queueSize) {
-    return split(threadPool, in, numQueues, queueSize, (blockingQueues, t) -> blockingQueues);
+    return split(threadPool, threadPoolCloser, in, numQueues, queueSize, (blockingQueues, t) -> blockingQueues);
   }
 
   @SuppressWarnings("unchecked")
   private static <T> List<Stream<T>> split(
       ExecutorService threadPool,
+      Consumer<ExecutorService> threadPoolCloser,
       Stream<T> in,
       int numQueues,
       int eachQueueSize,
@@ -153,30 +156,37 @@ public enum StreamUtils {
         .mapToObj(i -> new ArrayBlockingQueue<>(eachQueueSize))
         .collect(toList());
 
-    Object sentinel = initializeSplit(threadPool, in, selector, queues);
+    Object sentinel = initializeSplit(threadPool, threadPoolCloser, in, selector, queues);
 
     return IntStream.range(0, numQueues)
-        .mapToObj(c -> StreamSupport.stream(
-            ((Iterable<T>) () -> iteratorFinishingOnSentinel(
-                e -> e == sentinel,
-                blockingDataReader(queues.get(c)))).spliterator(),
-            false))
+        .mapToObj(
+            c -> StreamSupport.stream(
+                ((Iterable<T>) () -> iteratorFinishingOnSentinel(
+                    e -> e == sentinel,
+                    blockingDataReader(queues.get(c)))).spliterator(),
+                false))
         .collect(toList());
   }
 
   private static <T> Object initializeSplit(
       ExecutorService threadPool,
+      Consumer<ExecutorService> threadPoolCloser,
       Stream<T> in,
       BiFunction<List<BlockingQueue<Object>>, T, List<BlockingQueue<Object>>> selector,
       List<BlockingQueue<Object>> queues) {
-    Object sentinel = createSentinel(0);
-    new Runnable() {
-      final AtomicBoolean initialized = new AtomicBoolean(false);
+    class TaskSubmitter implements Runnable {
+      private final AtomicBoolean initialized = new AtomicBoolean(false);
+      private final Object        sentinel;
+
+      private TaskSubmitter(Object sentinel) {
+        this.sentinel = sentinel;
+      }
 
       @SuppressWarnings("unchecked")
       public void run() {
         threadPool.submit(
             () -> Stream.concat(in, Stream.of(sentinel))
+                .onClose(() -> threadPoolCloser.accept(threadPool))
                 .forEach(e -> {
                       if (e == sentinel)
                         queues.forEach(q -> {
@@ -202,7 +212,9 @@ public enum StreamUtils {
             updateAndNotifyAll(initialized, v -> v.set(true));
           }
       }
-    }.run();
+    }
+    Object sentinel = createSentinel(0);
+    new TaskSubmitter(sentinel).run();
     return sentinel;
   }
 

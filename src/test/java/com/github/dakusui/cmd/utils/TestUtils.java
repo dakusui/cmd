@@ -87,6 +87,7 @@ public enum TestUtils {
     int numQueues = 7;
     return StreamUtils.partition(
         Executors.newFixedThreadPool(numQueues + 1),
+        ExecutorService::shutdown,
         in,
         numQueues,
         100,
@@ -97,6 +98,7 @@ public enum TestUtils {
     int numQueues = 7;
     return StreamUtils.tee(
         newFixedThreadPool(numQueues + 1),
+        ExecutorService::shutdown,
         in,
         numQueues,
         100);

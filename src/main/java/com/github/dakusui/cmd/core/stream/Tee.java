@@ -7,6 +7,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static com.github.dakusui.cmd.utils.StreamUtils.nop;
+
 public interface Tee<T> extends SplittingConnector<T> {
   default List<Stream<T>> tee() {
     return this.split();
@@ -30,7 +32,7 @@ public interface Tee<T> extends SplittingConnector<T> {
 
     @Override
     public List<Stream<T>> split() {
-      return StreamUtils.tee(this.threadPool(), in, numQueues(), eachQueueSize());
+      return StreamUtils.tee(this.threadPool(), nop(), in, numQueues(), eachQueueSize());
     }
   }
 }
