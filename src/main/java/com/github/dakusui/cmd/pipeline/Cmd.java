@@ -2,13 +2,18 @@ package com.github.dakusui.cmd.pipeline;
 
 import com.github.dakusui.cmd.core.stream.Merger;
 
+import java.util.Arrays;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.pipeline.Cmd.Type.PIPE;
 import static com.github.dakusui.cmd.pipeline.Cmd.Type.SOURCE;
-import static com.github.dakusui.cmd.utils.Checks.*;
-import static java.util.Arrays.asList;
+import static com.github.dakusui.cmd.utils.Checks.greaterThan;
+import static com.github.dakusui.cmd.utils.Checks.isNull;
+import static com.github.dakusui.cmd.utils.Checks.requireArgument;
+import static com.github.dakusui.cmd.utils.Checks.requireState;
+import static com.github.dakusui.cmd.utils.Checks.typeIs;
 import static java.util.Objects.requireNonNull;
 
 public interface Cmd {
@@ -29,28 +34,36 @@ public interface Cmd {
 
   Cmd reduce(Cmd cmd);
 
-  static Cmd source(String command) {
-    return new Impl(SOURCE);
-  }
+  interface Factory {
+    default Cmd source(String command) {
+      return new Impl(SOURCE, numSplits());
+    }
 
-  static Cmd pipe(Stream<String> stdin, String command) {
-    return new Impl(PIPE);
-  }
+    default Cmd pipe(String command) {
+      return new Impl(PIPE, numSplits());
+    }
 
-  static Cmd sink(Stream<String> stdin, String command) {
-    return new Impl(Type.SINK);
-  }
+    default Cmd sink(String command) {
+      return new Impl(Type.SINK, numSplits());
+    }
 
-  static Cmd cmd(String command) {
-    return new Impl(Type.COMMAND);
+    default Cmd cmd(String command) {
+      return new Impl(Type.COMMAND, numSplits());
+    }
+
+    default int numSplits() {
+      return 8;
+    }
   }
 
   class Impl implements Cmd {
     private final Type type;
     boolean alreadyStreamed = false;
-    Cmd[] downstreams = null;
+    Cmd     upstream        = null;
+    Cmd[]   downstreams     = null;
 
-    Impl(Type type) {
+
+    Impl(Type type, int numSplits) {
       this.type = requireNonNull(type);
     }
 
@@ -81,8 +94,10 @@ public interface Cmd {
     public Stream<String> stream() {
       requireState(this, isAlreadyStreamed());
       alreadyStreamed = true;
-      //noinspection unchecked
-      return new Merger.Builder<>(asList((Stream<String>[]) downstreams))
+      return new Merger.Builder<>(
+          Arrays.stream(downstreams)
+              .map(Cmd::stream)
+              .collect(Collectors.toList()))
           .build()
           .merge();
     }
