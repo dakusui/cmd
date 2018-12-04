@@ -27,10 +27,10 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
   public void test() {
     List<String> out = Collections.synchronizedList(new LinkedList<>());
 
-    Stream<String> stream = cmd("echo hello && echo world")
-        .connect(cmd("cat").map(8, String::toUpperCase),
-            cmd("cat -n"),
-            cmd("cat -n").stdin(Stream.of("Hello")))
+    Stream<String> stream = source("echo hello && echo world")
+        .connect(source("cat").map(8, String::toUpperCase),
+            source("cat -n"),
+            source("cat -n").stdin(Stream.of("Hello")))
         .stream();
     stream.forEach(out::add);
 
@@ -50,7 +50,7 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
   @Repeat(times = 1_000)
   public void test2() {
     List<String> out = Collections.synchronizedList(new LinkedList<>());
-    cmd("echo hello && echo world").stream().forEach(out::add);
+    source("echo hello && echo world").stream().forEach(out::add);
 
     assertThat(
         out,
@@ -66,7 +66,7 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
   @Repeat(times = 1_000)
   public void test3() {
     List<String> out = Collections.synchronizedList(new LinkedList<>());
-    cmd("echo hello && echo world").connect(cmd("cat")).stream().forEach(out::add);
+    source("echo hello && echo world").connect(source("cat")).stream().forEach(out::add);
 
     assertThat(
         out,
@@ -86,7 +86,7 @@ public class PipelineTest extends TestUtils.TestBase implements Pipeline.Factory
     System.out.println("before=" + before);
     List<String> out = Collections.synchronizedList(new LinkedList<>());
 
-    try (Stream<String> stream = cmd("cat")
+    try (Stream<String> stream = source("cat")
         .stdin(dataStream("data", 10_000))
         .map(8, String::toUpperCase).stream()) {
       stream.peek(System.out::println).forEach(out::add);

@@ -37,6 +37,7 @@ import static com.github.dakusui.cmd.utils.ConcurrencyUtils.waitWhile;
 import static java.lang.Math.abs;
 import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toList;
 
 public enum StreamUtils {
@@ -58,6 +59,16 @@ public enum StreamUtils {
       return CloseableStringConsumer.create(os, charset);
     } catch (UnsupportedEncodingException e) {
       throw Exceptions.wrap(e);
+    }
+  }
+
+  public static void shutdownThreadPoolAndAwaitTermination(ExecutorService threadPool) {
+    threadPool.shutdown();
+    while (!threadPool.isTerminated()) {
+      try {
+        threadPool.awaitTermination(1, MILLISECONDS);
+      } catch (InterruptedException ignored) {
+      }
     }
   }
 

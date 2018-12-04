@@ -1,5 +1,7 @@
 package com.github.dakusui.cmd.utils;
 
+import com.github.dakusui.cmd.pipeline.Cmd;
+
 import java.util.function.Predicate;
 
 public enum Checks {
@@ -37,6 +39,39 @@ public enum Checks {
       @Override
       public String toString() {
         return ">=" + value;
+      }
+    };
+  }
+
+  public static <V> V requireState(V v, Predicate<V> cond) {
+    if (cond.test(v))
+      return v;
+    throw new IllegalStateException(String.format("'%s' is not met with requirement '%s", v, cond));
+  }
+
+  public static Predicate<Cmd> typeIs(Cmd.Type type) {
+    return new Predicate<Cmd>() {
+      @Override
+      public boolean test(Cmd v) {
+        return v.type().equals(type);
+      }
+
+      @Override
+      public String toString() {
+        return "typeIs[" + type + "]";
+      }
+    };
+  }
+
+  public static Predicate<Object> isNull() {
+    return new Predicate<Object>() {
+      @Override
+      public boolean test(Object o) {
+        return false;
+      }
+      @Override
+      public String toString() {
+        return "isNull";
       }
     };
   }

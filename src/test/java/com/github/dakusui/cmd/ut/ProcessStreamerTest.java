@@ -142,6 +142,7 @@ public class ProcessStreamerTest extends TestUtils.TestBase {
         private ProcessStreamer ps  = source()
             .command("echo hello world && _Echo hello!")
             .configureStderr(true, true, true)
+            .checker(ProcessStreamer.Checker.createCheckerForExitCode(127))
             .build();
         private int             exitCode;
         private List<String>    out = new LinkedList<>();

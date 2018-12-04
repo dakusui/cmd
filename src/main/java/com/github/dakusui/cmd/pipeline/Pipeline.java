@@ -21,22 +21,20 @@ import static java.util.stream.Collectors.toList;
  * A wrapper of a process streamer's builder.
  */
 public interface Pipeline {
+  /**
+   * Connects a given stream to {@code stdin}
+   * @param stdin A stream to be connected.
+   * @return This object.
+   */
   Pipeline stdin(Stream<String> stdin);
 
+  /**
+   * Returns a stream connected to this pipeline's {@code stdin}.
+   * Or {@code null}, if not connected any.
+   *
+   * @return A connected stream to {@code stdin},
+   */
   Stream<String> stdin();
-
-  default Pipeline map(int numPartitions, Pipeline mapper) {
-    return this.mapStream(
-        numPartitions,
-        in -> mapper.stdin(in).stream().onClose(in::close)
-    );
-  }
-
-  Pipeline mapStream(int numPartitions, Function<Stream<String>, Stream<String>> mapper);
-
-  default Pipeline map(int numPartitions, Function<String, String> mapper) {
-    return mapStream(numPartitions, in -> in.map(mapper));
-  }
 
   /**
    * Connects {@code pipelines} to downstream side of this pipeline.
@@ -57,18 +55,35 @@ public interface Pipeline {
    */
   Stream<String> stream();
 
+  default Pipeline map(int numPartitions, Pipeline mapper) {
+    return this.mapStream(
+        numPartitions,
+        in -> mapper.stdin(in).stream().onClose(in::close)
+    );
+  }
+
+  Pipeline mapStream(int numPartitions, Function<Stream<String>, Stream<String>> mapper);
+
+  default Pipeline map(int numPartitions, Function<String, String> mapper) {
+    return mapStream(numPartitions, in -> in.map(mapper));
+  }
+
   interface Factory {
-    default Pipeline cmd(String cmd) {
+    default Pipeline source(String cmd) {
       requireNonNull(cmd);
-      return cmd(CommandLineComposer.create(cmd));
+      return source(CommandLineComposer.create(cmd));
     }
 
-    default Pipeline cmd(CommandLineComposer commandLineComposer) {
+    default Pipeline source(CommandLineComposer commandLineComposer) {
       return new Impl(shell(), requireNonNull(commandLineComposer));
     }
 
     default Shell shell() {
       return Shell.local();
+    }
+
+    default int numPartitions() {
+      return 8;
     }
   }
 
@@ -99,7 +114,7 @@ public interface Pipeline {
 
   class Impl implements Pipeline {
     final ProcessStreamer.Builder builder;
-    Stream<String>                           stdin;
+    Stream<String> stdin;
     /**
      * A nested function that represents a sequence of actions performed on the stream
      * of the {@code ProcessStreamer} built by this object.
@@ -107,7 +122,7 @@ public interface Pipeline {
     Function<Stream<String>, Stream<String>> actions = Function.identity();
 
     Impl(Shell shell, CommandLineComposer commandLineComposer) {
-      this.builder = new ProcessStreamer.Builder(shell, commandLineComposer.compose());
+      this.builder = ProcessStreamer.source(shell).command(commandLineComposer.compose());
     }
 
     public Pipeline stdin(Stream<String> stdin) {

@@ -23,7 +23,6 @@ import static com.github.dakusui.cmd.utils.StreamUtils.toCloseableStringConsumer
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newFixedThreadPool;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
@@ -101,15 +100,16 @@ public class ProcessStreamer {
    * @return data stream.
    */
   public Stream<String> stream() {
-    return this.output.onClose(() -> {
-      this.close();
-      try {
-        LOGGER.debug("Closing");
-        this.waitFor();
-        LOGGER.debug("Closed");
-      } catch (InterruptedException ignored) {
-      }
-    });
+    return StreamUtils.closeOnFinish(
+        this.output.onClose(() -> {
+          this.close();
+          try {
+            LOGGER.debug("Closing");
+            this.waitFor();
+            LOGGER.debug("Closed");
+          } catch (InterruptedException ignored) {
+          }
+        }));
   }
 
   /**
@@ -136,7 +136,7 @@ public class ProcessStreamer {
    */
   public int waitFor() throws InterruptedException {
     synchronized (this.process) {
-      shutdownThreadPoolAndAwaitTermination(threadPool);
+      StreamUtils.shutdownThreadPoolAndAwaitTermination(threadPool);
       return checkProcessBehaviourWithChecker(this, this.checker);
     }
   }
@@ -344,16 +344,6 @@ public class ProcessStreamer {
 
   private int checkProcessBehaviourWithChecker(ProcessStreamer proc, ProcessStreamer.Checker checker) throws InterruptedException {
     return checker.check(proc);
-  }
-
-  private static void shutdownThreadPoolAndAwaitTermination(ExecutorService threadPool) {
-    threadPool.shutdown();
-    while (!threadPool.isTerminated()) {
-      try {
-        threadPool.awaitTermination(1, MILLISECONDS);
-      } catch (InterruptedException ignored) {
-      }
-    }
   }
 
   private static int getPid(Process proc) {
