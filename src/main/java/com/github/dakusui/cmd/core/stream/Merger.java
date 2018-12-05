@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd.core.stream;
 
+import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.StreamUtils;
 
 import java.util.List;
@@ -45,7 +46,7 @@ public interface Merger<T> extends Connector<T> {
     public Stream<T> merge() {
       return (Stream<T>) StreamUtils.closeOnFinish(StreamUtils.merge(
           threadPool(),
-          Base::shutdownThreadPoolAndWaitForTermination,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           eachQueueSize(),
           this.streams.toArray(new Stream[0])
       ));

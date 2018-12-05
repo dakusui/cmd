@@ -4,28 +4,15 @@ import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -37,7 +24,6 @@ import static com.github.dakusui.cmd.utils.ConcurrencyUtils.waitWhile;
 import static java.lang.Math.abs;
 import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toList;
 
 public enum StreamUtils {
@@ -59,16 +45,6 @@ public enum StreamUtils {
       return CloseableStringConsumer.create(os, charset);
     } catch (UnsupportedEncodingException e) {
       throw Exceptions.wrap(e);
-    }
-  }
-
-  public static void shutdownThreadPoolAndAwaitTermination(ExecutorService threadPool) {
-    threadPool.shutdown();
-    while (!threadPool.isTerminated()) {
-      try {
-        threadPool.awaitTermination(1, MILLISECONDS);
-      } catch (InterruptedException ignored) {
-      }
     }
   }
 
@@ -163,7 +139,10 @@ public enum StreamUtils {
       int numQueues,
       int eachQueueSize,
       BiFunction<List<BlockingQueue<Object>>, T, List<BlockingQueue<Object>>> selector) {
-    List<BlockingQueue<Object>> queues = IntStream.range(0, requireArgument(numQueues, greaterThan(0)))
+    requireArgument(numQueues, greaterThan(0));
+    if (numQueues == 1)
+      return singletonList(in);
+    List<BlockingQueue<Object>> queues = IntStream.range(0, numQueues)
         .mapToObj(i -> new ArrayBlockingQueue<>(eachQueueSize))
         .collect(toList());
 
@@ -187,7 +166,7 @@ public enum StreamUtils {
       List<BlockingQueue<Object>> queues) {
     class TaskSubmitter implements Runnable {
       private final AtomicBoolean initialized = new AtomicBoolean(false);
-      private final Object        sentinel;
+      private final Object sentinel;
 
       private TaskSubmitter(Object sentinel) {
         this.sentinel = sentinel;
@@ -196,8 +175,9 @@ public enum StreamUtils {
       @SuppressWarnings("unchecked")
       public void run() {
         threadPool.submit(
-            () -> Stream.concat(in, Stream.of(sentinel))
-                .onClose(() -> threadPoolCloser.accept(threadPool))
+            () -> StreamUtils.closeOnFinish(
+                Stream.concat(in, Stream.of(sentinel))
+                    .onClose(() -> threadPoolCloser.accept(threadPool)))
                 .forEach(e -> {
                       if (e == sentinel)
                         queues.forEach(q -> {

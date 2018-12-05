@@ -9,19 +9,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -80,14 +72,16 @@ public enum TestUtils {
 
   public static <T> Stream<T> merge(List<Stream<T>> streams) {
     return StreamUtils.merge(newFixedThreadPool(streams.size() + 1),
-        ExecutorService::shutdown, 100, streams.toArray(new Stream[0]));
+        ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
+        100,
+        streams.toArray(new Stream[0]));
   }
 
   public static <T> List<Stream<T>> partition(Stream<T> in) {
     int numQueues = 7;
     return StreamUtils.partition(
         Executors.newFixedThreadPool(numQueues + 1),
-        ExecutorService::shutdown,
+        ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
         in,
         numQueues,
         100,
@@ -98,25 +92,10 @@ public enum TestUtils {
     int numQueues = 7;
     return StreamUtils.tee(
         newFixedThreadPool(numQueues + 1),
-        ExecutorService::shutdown,
+        ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
         in,
         numQueues,
         100);
-  }
-
-  /**
-   * A base class for tests which writes to to/stderr.
-   */
-  public static class TestBase {
-    @Before
-    public void suppressStdOutErrIfRunUnderSurefire() {
-      TestUtils.suppressStdOutErrIfRunUnderSurefire();
-    }
-
-    @After
-    public void restoreStdOutErr() {
-      TestUtils.restoreStdOutErr();
-    }
   }
 
   public static void suppressStdOutErrIfRunUnderSurefire() {
@@ -176,62 +155,6 @@ public enum TestUtils {
     }
   }
 
-  public static class MatcherBuilder<V, U> {
-    String         predicateName = "P";
-    Predicate<U>   p             = null;
-    String         functionName  = "transform";
-    Function<V, U> f             = null;
-
-    public MatcherBuilder<V, U> transform(String name, Function<V, U> f) {
-      this.functionName = Objects.requireNonNull(name);
-      this.f = Objects.requireNonNull(f);
-      return this;
-    }
-
-    public MatcherBuilder<V, U> check(String name, Predicate<U> p) {
-      this.predicateName = Objects.requireNonNull(name);
-      this.p = Objects.requireNonNull(p);
-      return this;
-    }
-
-    public Matcher<V> build() {
-      Objects.requireNonNull(p);
-      Objects.requireNonNull(f);
-      return new BaseMatcher<V>() {
-        @SuppressWarnings("unchecked")
-        @Override
-        public boolean matches(Object item) {
-          return p.test(f.apply((V) item));
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public void describeMismatch(Object item, Description description) {
-          description
-              .appendText("was false because " + functionName + "(x)=")
-              .appendValue(f.apply((V) item))
-              .appendText("; x=")
-              .appendValue(item)
-          ;
-        }
-
-        @Override
-        public void describeTo(Description description) {
-          description.appendText(String.format("%s(%s(x))", predicateName, functionName));
-        }
-      };
-    }
-
-    public static <T> MatcherBuilder<T, T> simple() {
-      return new MatcherBuilder<T, T>()
-          .transform("passthrough", t -> t);
-    }
-
-    public static <T, U> MatcherBuilder<T, U> create() {
-      return new MatcherBuilder<>();
-    }
-  }
-
   /**
    * A bit better version of CoreMatchers.allOf.
    * For example:
@@ -278,20 +201,6 @@ public enum TestUtils {
     };
   }
 
-  public static class Item<D> {
-    public final String symbol;
-    public final D      value;
-
-    Item(String symbol, D value) {
-      this.symbol = Objects.requireNonNull(symbol);
-      this.value = value;
-    }
-
-    public String toString() {
-      return String.format("(%s:%s)", symbol, value);
-    }
-  }
-
   public static <D> Item<D> item(String symbol, D value) {
     return new Item<>(symbol, value);
   }
@@ -327,6 +236,91 @@ public enum TestUtils {
       }
     } catch (InterruptedException e) {
       throw Exceptions.wrap(e);
+    }
+  }
+
+  /**
+   * A base class for tests which writes to to/stderr.
+   */
+  public static class TestBase {
+    @Before
+    public void suppressStdOutErrIfRunUnderSurefire() {
+      TestUtils.suppressStdOutErrIfRunUnderSurefire();
+    }
+
+    @After
+    public void restoreStdOutErr() {
+      TestUtils.restoreStdOutErr();
+    }
+  }
+
+  public static class MatcherBuilder<V, U> {
+    String predicateName = "P";
+    Predicate<U> p = null;
+    String functionName = "transform";
+    Function<V, U> f = null;
+
+    public static <T> MatcherBuilder<T, T> simple() {
+      return new MatcherBuilder<T, T>()
+          .transform("passthrough", t -> t);
+    }
+
+    public static <T, U> MatcherBuilder<T, U> create() {
+      return new MatcherBuilder<>();
+    }
+
+    public MatcherBuilder<V, U> transform(String name, Function<V, U> f) {
+      this.functionName = Objects.requireNonNull(name);
+      this.f = Objects.requireNonNull(f);
+      return this;
+    }
+
+    public MatcherBuilder<V, U> check(String name, Predicate<U> p) {
+      this.predicateName = Objects.requireNonNull(name);
+      this.p = Objects.requireNonNull(p);
+      return this;
+    }
+
+    public Matcher<V> build() {
+      Objects.requireNonNull(p);
+      Objects.requireNonNull(f);
+      return new BaseMatcher<V>() {
+        @SuppressWarnings("unchecked")
+        @Override
+        public boolean matches(Object item) {
+          return p.test(f.apply((V) item));
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public void describeMismatch(Object item, Description description) {
+          description
+              .appendText("was false because " + functionName + "(x)=")
+              .appendValue(f.apply((V) item))
+              .appendText("; x=")
+              .appendValue(item)
+          ;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+          description.appendText(String.format("%s(%s(x))", predicateName, functionName));
+        }
+      };
+    }
+  }
+
+  public static class Item<D> {
+    public final String symbol;
+    public final D value;
+
+    Item(String symbol, D value) {
+      this.symbol = Objects.requireNonNull(symbol);
+      this.value = value;
+    }
+
+    public String toString() {
+      return String.format("(%s:%s)", symbol, value);
     }
   }
 

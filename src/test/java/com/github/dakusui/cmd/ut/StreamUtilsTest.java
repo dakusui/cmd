@@ -2,6 +2,7 @@ package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.core.stream.Merger;
 import com.github.dakusui.cmd.core.stream.Partitioner;
+import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.cmd.utils.TestUtils;
 import org.junit.Ignore;
@@ -9,12 +10,9 @@ import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.ConcurrencyUtils.updateAndNotifyAll;
@@ -34,7 +32,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           1,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"))
           .peek(System.out::println)
@@ -53,7 +51,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           1,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"),
           Stream.of("a", "b", "c", "d", "e", "f", "g", "h"))
@@ -95,7 +93,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           1,
           dataStream("A", sizeOfEachStream),
           dataStream("B", sizeOfEachStream))
@@ -114,7 +112,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       List<String> out = new LinkedList<>();
       StreamUtils.merge(
           newFixedThreadPool(2),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           10_000,
           dataStream("data", 100_000),
           Stream.empty())
@@ -125,42 +123,37 @@ public class StreamUtilsTest extends TestUtils.TestBase {
           out,
           asInteger("size").eq(100000).$());
     }
-
-    @Test
-    public void mergerTest() {
-      new Merger.Builder<>(
-          dataStream("A", 1_000),
-          dataStream("B", 1_000),
-          dataStream("C", 1_000),
-          dataStream("D", 1_000),
-          dataStream("E", 1_000),
-          dataStream("F", 1_000),
-          dataStream("G", 1_000),
-          dataStream("H", 1_000)).numQueues(8).build()
-          .merge()
-          .forEach(System.out::println);
-    }
   }
 
   public static class Tee extends TestUtils.TestBase {
     @Test(timeout = 10_000)
-    public void tee10() {
-      TestUtils.tee(dataStream("data", 10))
-          .forEach(s -> s.forEach(System.out::println));
+    public void givenTenElements$whenTee$thenAllStreamed() {
+      int num = 10;
+      Set<String> resultSet = Collections.synchronizedSet(new HashSet<>());
+      TestUtils.tee(dataStream("data", num))
+          .forEach(
+              s -> s.peek(resultSet::add)
+                  .forEach(System.out::println));
+
+      assertThat(
+          resultSet,
+          asInteger("size").equalTo(num).$()
+      );
     }
 
     @Test(timeout = 10_000)
-    public void tee100() {
-      TestUtils.tee(dataStream("data", 100))
-          .forEach(s -> s.forEach(System.out::println));
-    }
+    public void given100Elements$whenTee$thenAllStreamed() {
+      int num = 100;
+      Set<String> resultSet = Collections.synchronizedSet(new HashSet<>());
+      TestUtils.tee(dataStream("data", num))
+          .forEach(
+              s -> s.peek(resultSet::add)
+                  .forEach(System.out::println));
 
-    @Test(timeout = 10_000)
-    public void tee100m() {
-      new Merger.Builder<>(TestUtils.tee(dataStream("data", 100)))
-          .build()
-          .merge()
-          .forEach(System.out::println);
+      assertThat(
+          resultSet,
+          asInteger("size").equalTo(num).$()
+      );
     }
 
     @Test
@@ -171,7 +164,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
       StreamUtils.tee(
           newFixedThreadPool(2),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 1)
           .forEach(
               s -> threadPoolForTestSide.submit(
@@ -224,12 +217,6 @@ public class StreamUtilsTest extends TestUtils.TestBase {
           .forEach(s -> s.forEach(System.out::println));
     }
 
-    @Test(timeout = 1_000)
-    public void partition100m() {
-      new Merger.Builder<>(TestUtils.partition(dataStream("data", 100))).build()
-          .merge().forEach(System.out::println);
-    }
-
     @Test(timeout = 2_000)
     public void partition1000() {
       List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
@@ -237,22 +224,6 @@ public class StreamUtilsTest extends TestUtils.TestBase {
         s.forEach(System.out::println);
       }
     }
-
-    @Test(timeout = 2_000)
-    public void partition1000_2() {
-      List<Stream<String>> streams =
-          StreamUtils.partition(
-              Executors.newFixedThreadPool(10),
-              ExecutorService::shutdown,
-              dataStream("data", 1_000),
-              4,
-              100,
-              Object::hashCode);
-      try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
-        s.forEach(System.out::println);
-      }
-    }
-
 
     @Test(timeout = 10_000)
     public void partition100_000andMerge() {
@@ -281,7 +252,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams + 1);
       StreamUtils.partition(
           newFixedThreadPool(2),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           Stream.of("A", "B", "C", "D", "E", "F", "G", "H"), numDownstreams, 100, String::hashCode)
           .forEach(
               s -> threadPoolForTestSide.submit(
@@ -314,7 +285,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
       ExecutorService threadPoolForTestSide = newFixedThreadPool(numDownstreams);
       StreamUtils.partition(
           newFixedThreadPool(3),
-          ExecutorService::shutdown,
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           dataStream("A", dataSize), numDownstreams, 1, String::hashCode)
           .forEach(
               s -> threadPoolForTestSide.submit(
@@ -354,59 +325,15 @@ public class StreamUtilsTest extends TestUtils.TestBase {
 
     @Test(timeout = 10_000)
     public void partitionAndThenMerge100_000() {
-      int num = 100_000;
+      int num = 1_000_000;
       AtomicInteger counter = new AtomicInteger(0);
       TestUtils.merge(
-          TestUtils.partition(dataStream("data", 100_000))
+          TestUtils.partition(dataStream("data", num))
       ).forEach(t -> counter.getAndIncrement());
       assertThat(
           counter,
           asInteger("get").equalTo(num).$()
       );
-    }
-
-    @Test(timeout = 10_000)
-    public void partitionerAndThenMerger() {
-      int num = 100_000;
-      AtomicInteger counter = new AtomicInteger(0);
-      new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("A", num)).numQueues(4).build().partition()
-              .stream()
-              .map(s -> s.peek(v -> System.err.println(Thread.currentThread().getId())))
-              .collect(Collectors.toList())
-      ).build()
-          .merge()
-          .forEach(t -> counter.getAndIncrement());
-      assertThat(
-          counter,
-          asInteger("get").equalTo(num).$()
-      );
-    }
-
-    @Test(timeout = 30_000)
-    public void partitionerAndThenMerger_1M() {
-      int result = new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(7).build().partition()
-              .stream()
-              .map(s -> s.map(PartitionAndMerge::process))
-              .collect(Collectors.toList())
-      ).build()
-          .merge()
-          .reduce((v, w) -> v + w).orElseThrow(RuntimeException::new);
-      System.out.println(result);
-    }
-
-    @Test(timeout = 60_000)
-    public void partitionerAndThenMerger_10M() {
-      int result = new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("data", 10_000_000)).numQueues(7).build().partition()
-              .stream()
-              .map(s -> s.map(PartitionAndMerge::process))
-              .collect(Collectors.toList())
-      ).build()
-          .merge()
-          .reduce((v, w) -> v + w).orElseThrow(RuntimeException::new);
-      System.out.println(result);
     }
 
     @Ignore
@@ -427,7 +354,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
           .reduce((v, w) -> v + w));
     }
 
-    private static int process(String s) {
+    static int process(String s) {
       return s.length();
     }
   }

@@ -2,6 +2,7 @@ package com.github.dakusui.cmd.core.process;
 
 import com.github.dakusui.cmd.exceptions.CommandExecutionException;
 import com.github.dakusui.cmd.exceptions.Exceptions;
+import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.cmd.utils.StreamUtils.CloseableStringConsumer;
 import com.github.dakusui.cmd.utils.StreamUtils.RingBuffer;
@@ -136,7 +137,7 @@ public class ProcessStreamer {
    */
   public int waitFor() throws InterruptedException {
     synchronized (this.process) {
-      StreamUtils.shutdownThreadPoolAndAwaitTermination(threadPool);
+      ConcurrencyUtils.shutdownThreadPoolAndAwaitTermination(threadPool);
       return checkProcessBehaviourWithChecker(this, this.checker);
     }
   }

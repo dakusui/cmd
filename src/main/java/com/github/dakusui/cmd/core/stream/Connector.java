@@ -1,8 +1,9 @@
 package com.github.dakusui.cmd.core.stream;
 
+import com.github.dakusui.cmd.utils.ConcurrencyUtils;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static com.github.dakusui.cmd.utils.Checks.greaterThan;
@@ -55,17 +56,7 @@ public interface Connector<T> {
     }
 
     void shutdownThreadPoolAndWaitForTermination() {
-      shutdownThreadPoolAndWaitForTermination(threadPool);
-    }
-
-    static void shutdownThreadPoolAndWaitForTermination(ExecutorService threadPool) {
-      threadPool.shutdown();
-      while (!threadPool.isTerminated()) {
-        try {
-          threadPool.awaitTermination(1, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException ignored) {
-        }
-      }
+      ConcurrencyUtils.shutdownThreadPoolAndAwaitTermination(threadPool);
     }
 
     int numQueues() {
