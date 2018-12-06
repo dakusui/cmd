@@ -28,7 +28,7 @@ import static java.util.stream.Collectors.toList;
 public class ConnectorTest {
 
   public static class MergerTest {
-    @Test
+    @Test(timeout = 10_000)
     public void mergerTest() {
       new Merger.Builder<>(
           dataStream("A", 1_000),
