@@ -4,24 +4,19 @@ import com.github.dakusui.cmd.core.stream.Merger;
 import com.github.dakusui.cmd.core.stream.Partitioner;
 import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.cmd.utils.TestUtils;
-import com.github.dakusui.crest.core.Matcher;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
 
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static com.github.dakusui.cmd.utils.ConcurrencyUtils.shutdownThreadPoolAndAwaitTermination;
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
-import static com.github.dakusui.crest.Crest.*;
+import static com.github.dakusui.crest.Crest.asInteger;
+import static com.github.dakusui.crest.Crest.assertThat;
 import static java.util.stream.Collectors.toList;
 
 @RunWith(Enclosed.class)
