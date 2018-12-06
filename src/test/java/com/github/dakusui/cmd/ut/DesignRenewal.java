@@ -10,7 +10,8 @@ import org.junit.runners.Suite.SuiteClasses;
     ProcessStreamerTest.class,
     PipelineTest.class,
     ProcessStreamerConnectionTest.class,
-    ConnectorTest.class
+    ConnectorTest.class,
+    TeeTest.class
 })
 public class DesignRenewal {
 }

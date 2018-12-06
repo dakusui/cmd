@@ -84,7 +84,7 @@ public enum StreamUtils {
   }
 
   public static <T> Stream<T> closeOnFinish(Stream<T> in) {
-    return onFinish(in, Stream::close).onClose(in::close);
+    return onFinish(in, Stream::close);
   }
 
   @SuppressWarnings("unchecked")

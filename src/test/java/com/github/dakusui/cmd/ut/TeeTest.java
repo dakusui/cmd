@@ -65,6 +65,13 @@ public class TeeTest {
       executeTeeTest(numSplits, numItems, tee());
     }
 
+    @Test(timeout = 5_000)
+    public void givenShortStream$thenTeeInto7$thenStreamedCorrectly() {
+      int numSplits = 7;
+      int numItems = 10;
+      executeTeeTest(numSplits, numItems, tee());
+    }
+
     @Test(timeout = 10_000)
     public void givenLongStream$thenTeeInto3$thenStreamedCorrectly() {
       int numSplits = 3;
@@ -94,7 +101,7 @@ public class TeeTest {
           ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           dataStream("data", nI),
           nS,
-          5000
+          100
       );
     }
   }
