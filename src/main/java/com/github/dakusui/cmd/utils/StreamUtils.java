@@ -107,7 +107,6 @@ public enum StreamUtils {
         .map(each -> (T) each);
   }
 
-  @SuppressWarnings("unchecked")
   public static <T> List<Stream<T>> partition(
       ExecutorService threadPool,
       Consumer<ExecutorService> threadPoolCloser,
@@ -121,7 +120,6 @@ public enum StreamUtils {
             singletonList(blockingQueues.get(abs(partitioner.apply(each)) % numQueues)));
   }
 
-  @SuppressWarnings("unchecked")
   public static <T> List<Stream<T>> tee(
       ExecutorService threadPool,
       Consumer<ExecutorService> threadPoolCloser,
@@ -131,7 +129,6 @@ public enum StreamUtils {
     return split(threadPool, threadPoolCloser, in, numQueues, queueSize, (blockingQueues, t) -> blockingQueues);
   }
 
-  @SuppressWarnings("unchecked")
   private static <T> List<Stream<T>> split(
       ExecutorService threadPool,
       Consumer<ExecutorService> threadPoolCloser,
