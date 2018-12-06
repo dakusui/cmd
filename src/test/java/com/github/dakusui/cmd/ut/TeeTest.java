@@ -2,6 +2,7 @@ package com.github.dakusui.cmd.ut;
 
 import com.github.dakusui.cmd.core.stream.Tee;
 import com.github.dakusui.cmd.utils.ConcurrencyUtils;
+import com.github.dakusui.cmd.utils.Repeat;
 import com.github.dakusui.cmd.utils.StreamUtils;
 import com.github.dakusui.crest.core.Matcher;
 import org.junit.Test;
@@ -58,6 +59,7 @@ public class TeeTest {
   }
 
   public abstract static class Base {
+    @Repeat(times = 1_000)
     @Test(timeout = 1_000)
     public void givenShortStream$thenTeeInto3$thenStreamedCorrectly() {
       int numSplits = 3;
