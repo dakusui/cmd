@@ -34,7 +34,7 @@ public enum ConcurrencyUtils {
     threadPool.shutdown();
     while (!threadPool.isTerminated()) {
       try {
-        threadPool.awaitTermination(1, MILLISECONDS);
+        threadPool.awaitTermination(20, MILLISECONDS);
       } catch (InterruptedException ignored) {
       }
     }
