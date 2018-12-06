@@ -4,7 +4,7 @@ import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static com.github.dakusui.cmd.utils.Checks.greaterThan;
 import static com.github.dakusui.cmd.utils.Checks.requireArgument;
@@ -12,19 +12,39 @@ import static java.lang.Integer.max;
 import static java.util.Objects.requireNonNull;
 
 public interface Connector<T> {
+  interface ThreadPoolFactory {
+    ExecutorService createThreadPool();
+
+    Consumer<ExecutorService> createCloser();
+
+    static ThreadPoolFactory create(int numThreads) {
+      return new ThreadPoolFactory() {
+        @Override
+        public ExecutorService createThreadPool() {
+          return Executors.newFixedThreadPool(numThreads);
+        }
+
+        @Override
+        public Consumer<ExecutorService> createCloser() {
+          return ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination;
+        }
+      };
+    }
+  }
+
   abstract class BaseBuilder<T, C extends Connector<T>, B extends BaseBuilder<T, C, B>> {
-    int                       numQueues;
-    Supplier<ExecutorService> threadPoolFactory;
-    int                       eachQueueSize;
+    int               numQueues;
+    ThreadPoolFactory threadPoolFactory;
+    int               eachQueueSize;
 
     BaseBuilder() {
-      this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1, r -> new Thread(r, getClass().getCanonicalName())))
+      this.threadPoolFactory(ThreadPoolFactory.create(this.numQueues + 1))
           .numQueues(max(Runtime.getRuntime().availableProcessors() - 1, 1))
           .eachQueueSize(1_000);
     }
 
     @SuppressWarnings("unchecked")
-    public B threadPoolFactory(Supplier<ExecutorService> threadPoolFactory) {
+    public B threadPoolFactory(ThreadPoolFactory threadPoolFactory) {
       this.threadPoolFactory = requireNonNull(threadPoolFactory);
       return (B) this;
     }
@@ -45,12 +65,14 @@ public interface Connector<T> {
   }
 
   abstract class Base<T> implements Connector<T> {
-    private final ExecutorService threadPool;
-    private final int             numQueues;
-    private final int             eachQueueSize;
+    private final ExecutorService           threadPool;
+    private final int                       numQueues;
+    private final int                       eachQueueSize;
+    private final Consumer<ExecutorService> threadPoolCloser;
 
-    Base(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize) {
-      this.threadPool = threadPoolFactory.get();
+    Base(SplittingConnector.ThreadPoolFactory threadPoolFactory, int numQueues, int eachQueueSize) {
+      this.threadPool = threadPoolFactory.createThreadPool();
+      this.threadPoolCloser = threadPoolFactory.createCloser();
       this.numQueues = numQueues;
       this.eachQueueSize = eachQueueSize;
     }
@@ -69,6 +91,10 @@ public interface Connector<T> {
 
     ExecutorService threadPool() {
       return this.threadPool;
+    }
+
+    Consumer<ExecutorService> threadPoolCloser() {
+      return this.threadPoolCloser;
     }
   }
 }

@@ -4,8 +4,6 @@ import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.StreamUtils;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
@@ -36,7 +34,7 @@ public interface Merger<T> extends Connector<T> {
   class Impl<T> extends Connector.Base<T> implements Merger<T> {
     private final List<Stream<T>> streams;
 
-    Impl(List<Stream<T>> streams, Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize) {
+    Impl(List<Stream<T>> streams, ThreadPoolFactory threadPoolFactory, int numQueues, int eachQueueSize) {
       super(threadPoolFactory, numQueues, eachQueueSize);
       this.streams = requireNonNull(streams);
     }

@@ -1,13 +1,10 @@
 package com.github.dakusui.cmd.core.stream;
 
-import com.github.dakusui.cmd.utils.ConcurrencyUtils;
-
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.ConcurrencyUtils.shutdownThreadPoolAndAwaitTermination;
@@ -36,7 +33,7 @@ public interface SplittingConnector<T> extends Connector<T> {
   abstract class Base<T> extends Connector.Base<T> implements SplittingConnector<T> {
     final Stream<T> in;
 
-    Base(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize, Stream<T> in) {
+    Base(ThreadPoolFactory threadPoolFactory, int numQueues, int eachQueueSize, Stream<T> in) {
       super(threadPoolFactory, numQueues, eachQueueSize);
       this.in = requireNonNull(in).onClose(this::shutdownThreadPoolAndWaitForTermination);
     }

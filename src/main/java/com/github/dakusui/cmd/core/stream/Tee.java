@@ -1,13 +1,10 @@
 package com.github.dakusui.cmd.core.stream;
 
+import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.StreamUtils;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
-
-import static com.github.dakusui.cmd.utils.StreamUtils.nop;
 
 public interface Tee<T> extends SplittingConnector<T> {
   default List<Stream<T>> tee() {
@@ -26,13 +23,18 @@ public interface Tee<T> extends SplittingConnector<T> {
   }
 
   class Impl<T> extends SplittingConnector.Base<T> implements Tee<T> {
-    Impl(Supplier<ExecutorService> threadPoolFactory, int numQueues, int eachQueueSize, Stream<T> in) {
+    Impl(ThreadPoolFactory threadPoolFactory, int numQueues, int eachQueueSize, Stream<T> in) {
       super(threadPoolFactory, numQueues, eachQueueSize, in);
     }
 
     @Override
     public List<Stream<T>> split() {
-      return StreamUtils.tee(this.threadPool(), nop(), in, numQueues(), eachQueueSize());
+      return StreamUtils.tee(
+          this.threadPool(),
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
+          in,
+          numQueues(),
+          eachQueueSize());
     }
   }
 }
