@@ -48,8 +48,12 @@ public class ConnectorTest {
 
     @Test(timeout = 1_000)
     public void partition100() {
-      new Merger.Builder<>(TestUtils.partition(dataStream("data", 100))).build()
-          .merge().forEach(System.out::println);
+      new Merger.Builder<>(
+          TestUtils.partition(
+              dataStream("data", 100)))
+          .build()
+          .merge()
+          .forEach(System.out::println);
     }
 
     @Test(timeout = 2_000)

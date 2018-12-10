@@ -26,7 +26,7 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
 
 @RunWith(Enclosed.class)
 public class StreamUtilsTest extends TestUtils.TestBase {
-  public static class Merge extends TestUtils.TestBase {
+  public static class MergingTest extends TestUtils.TestBase {
     @Test(timeout = 3_000)
     public void givenOneStream$whenMerge$thenOutputIsInOrder() {
       List<String> out = new LinkedList<>();
@@ -125,7 +125,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
   }
 
-  public static class Tee extends TestUtils.TestBase {
+  public static class TeeTest extends TestUtils.TestBase {
     @Test(timeout = 10_000)
     public void givenTenElements$whenTee$thenAllStreamed() {
       int num = 10;
@@ -202,35 +202,28 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
   }
 
-  public static class Partition extends TestUtils.TestBase {
+  public static class PartitioningTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
-    public void partition100b() {
+    public void partition100parallel() {
       TestUtils.partition(dataStream("data", 100))
+          .stream()
+          .parallel()
           .forEach(s -> s.forEach(System.out::println));
     }
 
-    @Test(timeout = 10_000)
-    public void partition1000b() {
+    @Test(timeout = 5_000)
+    public void partition1000parallel() {
       TestUtils.partition(dataStream("data", 1_000))
           .stream()
           .parallel()
           .forEach(s -> s.forEach(System.out::println));
     }
 
-    @Test(timeout = 2_000)
-    public void partition1000() {
-      List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
-      try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
-        s.forEach(System.out::println);
-      }
+    @Test(timeout = 1_000)
+    public void partition10() {
+      TestUtils.partition(dataStream("data", 10))
+          .forEach(s -> s.forEach(System.out::println));
     }
-
-    @Test(timeout = 10_000)
-    public void partition100_000andMerge() {
-      new Merger.Builder<>(TestUtils.partition(dataStream("data", 100_000))).build()
-          .merge().forEach(System.out::println);
-    }
-
 
     @Test(timeout = 1_000)
     public void partition100() {
@@ -239,9 +232,23 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
 
     @Test(timeout = 1_000)
-    public void partition10() {
-      TestUtils.partition(dataStream("data", 10))
+    public void partition1000testUtils() {
+      TestUtils.partition(dataStream("data", 1000))
           .forEach(s -> s.forEach(System.out::println));
+    }
+
+    @Test(timeout = 2_000)
+    public void partition1000merger() {
+      List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
+      try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
+        s.forEach(System.out::println);
+      }
+    }
+
+    @Test(timeout = 10_000)
+    public void partition100_000merger() {
+      new Merger.Builder<>(TestUtils.partition(dataStream("data", 100_000))).build()
+          .merge().forEach(System.out::println);
     }
 
     @Test(timeout = 3_000)

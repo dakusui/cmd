@@ -1,10 +1,8 @@
 package com.github.dakusui.cmd.ut;
 
-import com.github.dakusui.cmd.core.stream.Tee;
 import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.Repeat;
 import com.github.dakusui.cmd.utils.StreamUtils;
-import com.github.dakusui.crest.core.Matcher;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -16,19 +14,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.github.dakusui.cmd.utils.ConcurrencyUtils.shutdownThreadPoolAndAwaitTermination;
 import static com.github.dakusui.cmd.utils.TestUtils.dataStream;
-import static com.github.dakusui.crest.Crest.*;
-import static java.util.stream.Collectors.toList;
+import static com.github.dakusui.crest.Crest.asInteger;
+import static com.github.dakusui.crest.Crest.assertThat;
 
 @RunWith(Enclosed.class)
-public class TeeTest extends SplittingConnectorTest {
-
+public class PartitioningConnectorTest extends SplittingConnectorTest {
   @SuppressWarnings("unchecked")
-  private static void executeTeeTest(int numSplits, int numItems, Function<Integer, Function<Integer, List<Stream<String>>>> tee) {
+  private static void executePartitionTest(int numSplits, int numItems, Function<Integer, Function<Integer, List<Stream<String>>>> tee) {
     ExecutorService threadPool = Executors.newFixedThreadPool(numSplits);
     AtomicInteger counter = new AtomicInteger(0);
     List<List<String>> outs = Collections.synchronizedList(new LinkedList<>());
@@ -38,55 +34,48 @@ public class TeeTest extends SplittingConnectorTest {
             stream -> {
               final List<String> out = new LinkedList<>();
               outs.add(counter.getAndIncrement(), out);
-
-              threadPool.submit(() -> {
-                stream.forEach(out::add);
-              });
+              threadPool.submit(() -> stream.forEach(out::add));
             }
         );
     shutdownThreadPoolAndAwaitTermination(threadPool);
-    @SuppressWarnings("unchecked") List<Matcher<List<List<String>>>> matchers = List.class.cast(IntStream.range(0, numSplits)
-        .mapToObj(
-            i -> asInteger(
-                call("get", i)
-                    .andThen("size").$()).equalTo(numItems).$())
-        .collect(toList()));
+    List<String> all = new LinkedList<String>() {{
+      for (List<String> each : outs)
+        addAll(each);
+    }};
     assertThat(
-        outs,
-        allOf(
-            matchers.toArray(new Matcher[0])
-        )
+        all,
+        asInteger("size").$()
     );
   }
 
   public abstract static class Base {
     @Repeat(times = 1_000)
     @Test(timeout = 10_000)
-    public void givenShortStream$thenTeeInto3$thenStreamedCorrectly() {
+    public void givenShortStream$thenPartitionInto3$thenStreamedCorrectly() {
       int numSplits = 3;
       int numItems = 10;
-      executeTeeTest(numSplits, numItems, tee());
+      executePartitionTest(numSplits, numItems, tee());
     }
 
     @Test(timeout = 5_000)
-    public void givenShortStream$thenTeeInto7$thenStreamedCorrectly() {
+    public void givenShortStream$thenPartitionInto7$thenStreamedCorrectly() {
       int numSplits = 7;
       int numItems = 10;
-      executeTeeTest(numSplits, numItems, tee());
+      executePartitionTest(numSplits, numItems, tee());
     }
 
     @Test(timeout = 10_000)
-    public void givenLongStream$thenTeeInto3$thenStreamedCorrectly() {
+    public void givenLongStream$thenPartitionInto3$thenStreamedCorrectly() {
       int numSplits = 3;
       int numItems = 1_000_000;
-      executeTeeTest(numSplits, numItems, tee());
+      executePartitionTest(numSplits, numItems, tee());
     }
 
     @Test(timeout = 10_000)
-    public void givenLongStream$thenTeeInto1$thenStreamedCorrectly() {
+    public void givenLongStream$thenPartitionInto1$thenStreamedCorrectly() {
       int numSplits = 1;
       int numItems = 1_000_000;
-      executeTeeTest(
+      executePartitionTest(
           numSplits,
           numItems,
           tee()
@@ -99,24 +88,14 @@ public class TeeTest extends SplittingConnectorTest {
   public static class WithStreamUtils extends Base {
     @Override
     Function<Integer, Function<Integer, List<Stream<String>>>> tee() {
-      return nS -> nI -> StreamUtils.tee(
+      return nS -> nI -> StreamUtils.partition(
           Executors.newFixedThreadPool(nS),
           ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
           dataStream("data", nI),
           nS,
-          100
+          100,
+          Object::hashCode
       );
-    }
-  }
-
-  public static class WithTeeConnector extends Base {
-    @Override
-    Function<Integer, Function<Integer, List<Stream<String>>>> tee() {
-      return nS -> nI ->
-          new Tee.Builder<>(dataStream("data", nI))
-              .numQueues(nS)
-              .build()
-              .tee();
     }
   }
 }
