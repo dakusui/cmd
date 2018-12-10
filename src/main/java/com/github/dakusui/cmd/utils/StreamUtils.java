@@ -4,15 +4,28 @@ import com.github.dakusui.cmd.exceptions.Exceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.*;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -163,7 +176,7 @@ public enum StreamUtils {
       List<BlockingQueue<Object>> queues) {
     class TaskSubmitter implements Runnable {
       private final AtomicBoolean initialized = new AtomicBoolean(false);
-      private final Object sentinel;
+      private final Object        sentinel;
 
       private TaskSubmitter(Object sentinel) {
         this.sentinel = sentinel;
@@ -190,15 +203,15 @@ public enum StreamUtils {
                 )
         );
         synchronized (initialized) {
-          waitWhile(initialized, AtomicBoolean::get);
+          waitWhile(initialized, i -> !i.get());
         }
       }
 
       private void initializeIfNecessaryAndNotifyAll() {
-        if (!initialized.get())
-          synchronized (initialized) {
+        synchronized (initialized) {
+          if (!initialized.get())
             updateAndNotifyAll(initialized, v -> v.set(true));
-          }
+        }
       }
     }
     Object sentinel = createSentinel(0);

@@ -60,7 +60,7 @@ public class TeeTest {
 
   public abstract static class Base {
     @Repeat(times = 1_000)
-    @Test(timeout = 1_000)
+    @Test(timeout = 10_000)
     public void givenShortStream$thenTeeInto3$thenStreamedCorrectly() {
       int numSplits = 3;
       int numItems = 10;
