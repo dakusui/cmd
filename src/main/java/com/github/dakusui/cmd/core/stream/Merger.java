@@ -25,6 +25,7 @@ public interface Merger<T> extends Connector<T> {
     @SafeVarargs
     public Builder(Stream<T>... streams) {
       this(asList(streams));
+      this.numQueues(streams.length);
     }
 
     @Override

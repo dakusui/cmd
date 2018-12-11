@@ -11,7 +11,8 @@ import org.junit.runners.Suite.SuiteClasses;
     PipelineTest.class,
     ProcessStreamerConnectionTest.class,
     ConnectorTest.class,
-    TeeTest.class
+    TeeTest.class,
+    PartitioningTest.class,
 })
 public class DesignRenewal {
 }

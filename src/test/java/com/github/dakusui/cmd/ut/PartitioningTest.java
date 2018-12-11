@@ -1,5 +1,6 @@
 package com.github.dakusui.cmd.ut;
 
+import com.github.dakusui.cmd.core.stream.Partitioner;
 import com.github.dakusui.cmd.utils.ConcurrencyUtils;
 import com.github.dakusui.cmd.utils.Repeat;
 import com.github.dakusui.cmd.utils.StreamUtils;
@@ -22,7 +23,7 @@ import static com.github.dakusui.crest.Crest.asInteger;
 import static com.github.dakusui.crest.Crest.assertThat;
 
 @RunWith(Enclosed.class)
-public class PartitioningConnectorTest extends SplittingConnectorTest {
+public class PartitioningTest extends SplittingConnectorTest {
   @SuppressWarnings("unchecked")
   private static void executePartitionTest(int numSplits, int numItems, Function<Integer, Function<Integer, List<Stream<String>>>> tee) {
     ExecutorService threadPool = Executors.newFixedThreadPool(numSplits);
@@ -44,7 +45,7 @@ public class PartitioningConnectorTest extends SplittingConnectorTest {
     }};
     assertThat(
         all,
-        asInteger("size").$()
+        asInteger("size").equalTo(numItems).$()
     );
   }
 
@@ -54,21 +55,21 @@ public class PartitioningConnectorTest extends SplittingConnectorTest {
     public void givenShortStream$thenPartitionInto3$thenStreamedCorrectly() {
       int numSplits = 3;
       int numItems = 10;
-      executePartitionTest(numSplits, numItems, tee());
+      executePartitionTest(numSplits, numItems, partition());
     }
 
     @Test(timeout = 5_000)
     public void givenShortStream$thenPartitionInto7$thenStreamedCorrectly() {
       int numSplits = 7;
       int numItems = 10;
-      executePartitionTest(numSplits, numItems, tee());
+      executePartitionTest(numSplits, numItems, partition());
     }
 
     @Test(timeout = 10_000)
     public void givenLongStream$thenPartitionInto3$thenStreamedCorrectly() {
       int numSplits = 3;
       int numItems = 1_000_000;
-      executePartitionTest(numSplits, numItems, tee());
+      executePartitionTest(numSplits, numItems, partition());
     }
 
     @Test(timeout = 10_000)
@@ -78,16 +79,16 @@ public class PartitioningConnectorTest extends SplittingConnectorTest {
       executePartitionTest(
           numSplits,
           numItems,
-          tee()
+          partition()
       );
     }
 
-    abstract Function<Integer, Function<Integer, List<Stream<String>>>> tee();
+    abstract Function<Integer, Function<Integer, List<Stream<String>>>> partition();
   }
 
   public static class WithStreamUtils extends Base {
     @Override
-    Function<Integer, Function<Integer, List<Stream<String>>>> tee() {
+    Function<Integer, Function<Integer, List<Stream<String>>>> partition() {
       return nS -> nI -> StreamUtils.partition(
           Executors.newFixedThreadPool(nS),
           ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
@@ -98,4 +99,30 @@ public class PartitioningConnectorTest extends SplittingConnectorTest {
       );
     }
   }
+
+  public static class WithPartitioner extends Base {
+    @Override
+    Function<Integer, Function<Integer, List<Stream<String>>>> partition() {
+      return nS -> nI -> StreamUtils.partition(
+          Executors.newFixedThreadPool(nS),
+          ConcurrencyUtils::shutdownThreadPoolAndAwaitTermination,
+          dataStream("data", nI),
+          nS,
+          100,
+          Object::hashCode
+      );
+    }
+  }
+
+  public static class WithPartitionerConnector extends Base {
+    @Override
+    Function<Integer, Function<Integer, List<Stream<String>>>> partition() {
+      return nS -> nI ->
+          new Partitioner.Builder<>(dataStream("data", nI))
+              .numQueues(nS)
+              .build()
+              .partition();
+    }
+  }
+
 }

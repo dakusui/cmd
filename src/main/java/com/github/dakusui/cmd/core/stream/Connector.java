@@ -19,7 +19,7 @@ public interface Connector<T> {
 
     BaseBuilder() {
       this.threadPoolFactory(() -> Executors.newFixedThreadPool(this.numQueues + 1, r -> new Thread(r, getClass().getCanonicalName())))
-          .numQueues(max(Runtime.getRuntime().availableProcessors() - 1, 1))
+          .numQueues(max(7, 1))
           .eachQueueSize(1_000);
     }
 

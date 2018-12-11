@@ -204,7 +204,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
 
   public static class PartitioningTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
-    public void partition100parallel() {
+    public void partition100parallelWithTestUtils() {
       TestUtils.partition(dataStream("data", 100))
           .stream()
           .parallel()
@@ -212,7 +212,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
 
     @Test(timeout = 5_000)
-    public void partition1000parallel() {
+    public void partition1000parallelWithTestUtils() {
       TestUtils.partition(dataStream("data", 1_000))
           .stream()
           .parallel()
@@ -220,13 +220,13 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
 
     @Test(timeout = 1_000)
-    public void partition10() {
+    public void partition10testUtils() {
       TestUtils.partition(dataStream("data", 10))
           .forEach(s -> s.forEach(System.out::println));
     }
 
     @Test(timeout = 1_000)
-    public void partition100() {
+    public void partition100testUtils() {
       TestUtils.partition(dataStream("data", 100))
           .forEach(s -> s.forEach(System.out::println));
     }
@@ -238,7 +238,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
 
     @Test(timeout = 2_000)
-    public void partition1000merger() {
+    public void partition1000testUtilsAndThenMZerger() {
       List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
       try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
         s.forEach(System.out::println);
@@ -246,7 +246,7 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     }
 
     @Test(timeout = 10_000)
-    public void partition100_000merger() {
+    public void partition100_000testUtilsAndThehMerger() {
       new Merger.Builder<>(TestUtils.partition(dataStream("data", 100_000))).build()
           .merge().forEach(System.out::println);
     }

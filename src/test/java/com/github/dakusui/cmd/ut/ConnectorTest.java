@@ -22,8 +22,8 @@ import static java.util.stream.Collectors.toList;
 @RunWith(Enclosed.class)
 public class ConnectorTest {
 
-  public static class MergerTest {
-    @Test(timeout = 10_000)
+  public static class MergerTest extends TestUtils.TestBase {
+    @Test(timeout = 2_000)
     public void mergerTest() {
       new Merger.Builder<>(
           dataStream("A", 1_000),
@@ -33,7 +33,9 @@ public class ConnectorTest {
           dataStream("E", 1_000),
           dataStream("F", 1_000),
           dataStream("G", 1_000),
-          dataStream("H", 1_000)).numQueues(8).build()
+          dataStream("H", 1_000))
+          .numQueues(8)
+          .build()
           .merge()
           .forEach(System.out::println);
     }
@@ -51,6 +53,7 @@ public class ConnectorTest {
       new Merger.Builder<>(
           TestUtils.partition(
               dataStream("data", 100)))
+//          .numQueues(8)
           .build()
           .merge()
           .forEach(System.out::println);
@@ -66,7 +69,9 @@ public class ConnectorTest {
               4,
               100,
               Object::hashCode);
-      try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
+      try (Stream<String> s = new Merger.Builder<>(streams)
+//          .numQueues(5)
+          .build().merge()) {
         s.forEach(System.out::println);
       }
     }
@@ -82,11 +87,15 @@ public class ConnectorTest {
     @Test(timeout = 30_000)
     public void partitionerAndThenMerger_1M() {
       int result = new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("data", 1_000_000)).numQueues(7).build().partition()
+          new Partitioner.Builder<>(dataStream("data", 1_000_000))
+              .numQueues(7)
+              .build()
+              .partition()
               .stream()
               .map(s -> s.map(StreamUtilsTest.PartitionAndMerge::process))
-              .collect(toList())
-      ).build()
+              .collect(toList()))
+          .numQueues(8)
+          .build()
           .merge()
           .reduce((v, w) -> v + w).orElseThrow(RuntimeException::new);
       System.out.println(result);
@@ -95,11 +104,14 @@ public class ConnectorTest {
     @Test(timeout = 60_000)
     public void partitionerAndThenMerger_10M() {
       int result = new Merger.Builder<>(
-          new Partitioner.Builder<>(dataStream("data", 10_000_000)).numQueues(7).build().partition()
+          new Partitioner.Builder<>(dataStream("data", 10_000_000))
+              .numQueues(7)
+              .build()
+              .partition()
               .stream()
               .map(s -> s.map(StreamUtilsTest.PartitionAndMerge::process))
-              .collect(toList())
-      ).build()
+              .collect(toList()))
+          .build()
           .merge()
           .reduce((v, w) -> v + w).orElseThrow(RuntimeException::new);
       System.out.println(result);
