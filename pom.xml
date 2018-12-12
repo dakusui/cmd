@@ -197,7 +197,6 @@
                                 --base-dir ${project.basedir}
                                 --attribute "name=${project.name}"
                                 --attribute "version=${project.version}"
-
                             </additionalparam>
                             <additionalJOptions>
                                 <additionalJOption>--require asciidoctor-diagram</additionalJOption>

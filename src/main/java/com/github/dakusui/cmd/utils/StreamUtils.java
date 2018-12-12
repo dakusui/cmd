@@ -39,6 +39,10 @@ import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
+/**
+ * = A Stream Utility class
+ * This is a stream utility class.
+ */
 public enum StreamUtils {
   ;
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamUtils.class);
@@ -52,6 +56,7 @@ public enum StreamUtils {
    *
    * @param os      OutputStream to which string objects given to returned consumer written.
    * @param charset A {@code Charset} object that specifies encoding by which
+   * @return A closeable strinmg consumer object.
    */
   public static CloseableStringConsumer toCloseableStringConsumer(OutputStream os, Charset charset) {
     try {
@@ -90,6 +95,9 @@ public enum StreamUtils {
 
   /**
    * Returns a consumer that does nothing.
+   *
+   * @param <T> Type of values to be consumed by returned object.
+   * @return A consumer that doesn't do anything.
    */
   public static <T> Consumer<T> nop() {
     return e -> {
@@ -220,8 +228,18 @@ public enum StreamUtils {
   }
 
   /**
+   * = Merging function
    * Merges given streams possibly block into one keeping orders where elements
    * appear in original streams.
+   *
+   * [ditaa]
+   * ----
+   *
+   *    +-----+
+   *    |Queue|
+   *    +-----+
+   *
+   * ----
    *
    * @param threadPool A thread pool that gives threads by which data in {@code streams}
    *                   drained to the returned stream.
