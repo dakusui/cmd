@@ -156,11 +156,6 @@
                         --gem-path ${env.GEM_PATH}
                         --attribute data-uri
                     </additionalparam>
-                    <!-- additionalJOptions>
-                        <additionalJOption>-require asciidoctor-diagram</additionalJOption>
-                        <additionalJOption>-gem-path ${env.GEM_PATH}</additionalJOption>
-                        <additionalJOption>-attribute data-uri</additionalJOption>
-                    </additionalJOptions -->
                 </configuration>
             </plugin>
         </plugins>
