@@ -235,17 +235,18 @@ public enum StreamUtils {
    * [ditaa]
    * ----
    *
-   *    +-----+
-   *    |Queue|
-   *    +-----+
+   * +-----+
+   * |Queue|
+   * +-----+
    *
    * ----
    *
-   * @param threadPool A thread pool that gives threads by which data in {@code streams}
-   *                   drained to the returned stream.
-   * @param queueSize  The size of queue
-   * @param streams    input streams
-   * @param <T>        Type of elements that given streams contain.
+   * @param threadPool       A thread pool that gives threads by which data in {@code streams}
+   *                         drained to the returned stream.
+   * @param threadPoolCloser A consumer that closes {@code threadPool}.
+   * @param queueSize        The size of queue
+   * @param streams          input streams
+   * @param <T>              Type of elements that given streams contain.
    * @return merged stream
    */
   @SafeVarargs

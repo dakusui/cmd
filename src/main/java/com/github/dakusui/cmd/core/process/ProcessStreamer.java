@@ -125,8 +125,8 @@ public class ProcessStreamer {
   }
 
   /**
-   * You need to call {@link ProcessStreamer#drain(Stream, CloseableStringConsumer)} and {@link ProcessStreamer#stream()}
-   * methods on this object.
+   * If the underlying process has some output to stdout, you need to call {@link ProcessStreamer#stream()}
+   * methods on this object beforehand.
    * Otherwise this method will wait forever.
    *
    * @return exit code of the underlying process.

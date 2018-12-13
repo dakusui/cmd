@@ -128,6 +128,41 @@
                     </targetTests>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>2.10.4</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doclet>org.asciidoctor.Asciidoclet</doclet>
+                    <docletArtifact>
+                        <groupId>org.asciidoctor</groupId>
+                        <artifactId>asciidoclet</artifactId>
+                        <version>${asciidoclet.version}</version>
+                    </docletArtifact>
+                    <overview>src/main/java/overview.adoc</overview>
+                    <additionalparam>
+                        --base-dir ${project.basedir}
+                        --attribute "name=${project.name}"
+                        --attribute "version=${project.version}"
+                        --require asciidoctor-diagram
+                        --gem-path ${env.GEM_PATH}
+                        --attribute data-uri
+                    </additionalparam>
+                    <!-- additionalJOptions>
+                        <additionalJOption>-require asciidoctor-diagram</additionalJOption>
+                        <additionalJOption>-gem-path ${env.GEM_PATH}</additionalJOption>
+                        <additionalJOption>-attribute data-uri</additionalJOption>
+                    </additionalJOptions -->
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
@@ -172,38 +207,6 @@
                                 </goals>
                             </execution>
                         </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.9</version>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <doclet>org.asciidoctor.Asciidoclet</doclet>
-                            <docletArtifact>
-                                <groupId>org.asciidoctor</groupId>
-                                <artifactId>asciidoclet</artifactId>
-                                <version>${asciidoclet.version}</version>
-                            </docletArtifact>
-                            <overview>src/main/java/overview.adoc</overview>
-                            <additionalparam>
-                                --base-dir ${project.basedir}
-                                --attribute "name=${project.name}"
-                                --attribute "version=${project.version}"
-                            </additionalparam>
-                            <additionalJOptions>
-                                <additionalJOption>--require asciidoctor-diagram</additionalJOption>
-                                <additionalJOption>--gem-path ${env.GEM_PATH}</additionalJOption>
-                                <additionalJOption>--attribute data-uri</additionalJOption>
-                            </additionalJOptions>
-                        </configuration>
                     </plugin>
                 </plugins>
             </build>
