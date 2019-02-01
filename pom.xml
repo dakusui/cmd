@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.dakusui</groupId>
@@ -42,6 +44,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <asciidoclet.version>1.5.6</asciidoclet.version>
+        <env.GEM_PATH>/var/lib/gems/2.5.0</env.GEM_PATH>
     </properties>
 
     <dependencies>
@@ -73,6 +77,12 @@
             <groupId>com.github.dakusui</groupId>
             <artifactId>jcunit</artifactId>
             <version>0.8.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.dakusui</groupId>
+            <artifactId>thincrest</artifactId>
+            <version>3.6.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -116,6 +126,36 @@
                     <targetTests>
                         <param>*Test</param>
                     </targetTests>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>2.10.4</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doclet>org.asciidoctor.Asciidoclet</doclet>
+                    <docletArtifact>
+                        <groupId>org.asciidoctor</groupId>
+                        <artifactId>asciidoclet</artifactId>
+                        <version>${asciidoclet.version}</version>
+                    </docletArtifact>
+                    <overview>src/main/java/overview.adoc</overview>
+                    <additionalparam>
+                        --base-dir ${project.basedir}
+                        --attribute "name=${project.name}"
+                        --attribute "version=${project.version}"
+                        --require asciidoctor-diagram
+                        --gem-path ${env.GEM_PATH}
+                        --attribute data-uri
+                    </additionalparam>
                 </configuration>
             </plugin>
         </plugins>
