@@ -222,23 +222,29 @@ public class StreamUtilsTest extends TestUtils.TestBase {
     @Test(timeout = 1_000)
     public void partition10testUtils() {
       TestUtils.partition(dataStream("data", 10))
+          .stream()
+          .parallel()
           .forEach(s -> s.forEach(System.out::println));
     }
 
     @Test(timeout = 1_000)
     public void partition100testUtils() {
       TestUtils.partition(dataStream("data", 100))
+          .stream()
+          .parallel()
           .forEach(s -> s.forEach(System.out::println));
     }
 
     @Test(timeout = 1_000)
     public void partition1000testUtils() {
       TestUtils.partition(dataStream("data", 1000))
+          .stream()
+          .parallel()
           .forEach(s -> s.forEach(System.out::println));
     }
 
     @Test(timeout = 2_000)
-    public void partition1000testUtilsAndThenMZerger() {
+    public void partition1000testUtilsAndThenMerger() {
       List<Stream<String>> streams = TestUtils.partition(dataStream("data", 1_000));
       try (Stream<String> s = new Merger.Builder<>(streams).build().merge()) {
         s.forEach(System.out::println);
